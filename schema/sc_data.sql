@@ -1,27 +1,27 @@
--- DDL for defining the client-side database schema.
--- Designed for Oracle and MySQL - see in-line comments for minor adjustments that
--- may be needed for your RDBMS.
+-- DDL for defining client-side database schema of the SureChEMBL data feed.
+--
+-- Designed for Oracle and MySQL. See per-table comments for minor adjustments 
+-- that may be needed for your RDBMS.
 
+/*** DROP statements are for convenience only
 
--- TODO 
--- Use InnoDB for MySQL?
--- Handle large character data in MySQL and Oracle
+DROP TABLE schembl_document ;
+DROP TABLE schembl_document_class ;
+DROP TABLE schembl_document_title ;
+DROP TABLE schembl_chemical ;
+DROP TABLE schembl_chemical_structure ;
+DROP TABLE schembl_document_chemistry ;
 
-
--- Comment these in if needed
--- DROP TABLE chemical_structure;
--- DROP TABLE document_chemistry;
--- DROP TABLE chemical;
--- DROP TABLE document_class;
--- DROP TABLE document_title;
--- DROP TABLE document;
-
+***/
 
 -- -----------------------------------------------------
--- Table document
+-- Table schembl_document
 -- -----------------------------------------------------
 
-CREATE TABLE document (
+-- MySQL:  Add AUTO_INCREMENT to 'id'
+-- Oracle: Comment-in the following sequence and trigger
+
+CREATE TABLE schembl_document (
   id INTEGER NOT NULL,
   scpn VARCHAR(50) NOT NULL,
   published DATE NULL,
@@ -29,57 +29,57 @@ CREATE TABLE document (
   family_id INTEGER NULL,
   PRIMARY KEY (id));
 
-CREATE UNIQUE INDEX scpn_UNIQUE ON document (scpn ASC);
+CREATE UNIQUE INDEX scpn_UNIQUE ON schembl_document (scpn ASC);
 
--- MySQL: Add AUTO_INCREMENT to end of id definition
--- ORACLE: Use identity column definitiom (below)
+/***
 
-CREATE SEQUENCE document_id;
+CREATE SEQUENCE schembl_document_id;
 
-CREATE OR REPLACE TRIGGER document_bef_id
-  BEFORE INSERT ON document
+CREATE OR REPLACE TRIGGER schembl_document_bef_id
+  BEFORE INSERT ON schembl_document
   FOR EACH ROW
 BEGIN
-  :new.id := document_id.nextval;
+  :new.id := schembl_document_id.nextval;
 END;
 /
 
+***/
 
 -- -----------------------------------------------------
--- Table document_class
+-- Table schembl_document_class
 -- -----------------------------------------------------
 
-CREATE TABLE document_class (
-  document_id INTEGER NOT NULL,
+CREATE TABLE schembl_document_class (
+  schembl_doc_id INTEGER NOT NULL,
   class VARCHAR(100) NOT NULL,
   system SMALLINT NOT NULL,
-  PRIMARY KEY (document_id, class, system),
-  CONSTRAINT fk_document_class_doc1
-    FOREIGN KEY (document_id)
-    REFERENCES document (id));
+  PRIMARY KEY (schembl_doc_id, class, system),
+  CONSTRAINT fk_docclass_to_doc
+    FOREIGN KEY (schembl_doc_id)
+    REFERENCES schembl_document (id));
 
 
 -- -----------------------------------------------------
--- Table document_title
+-- Table schembl_document_title
 -- -----------------------------------------------------
 
-CREATE TABLE document_title (
-  document_id INTEGER NOT NULL,
+-- Oracle: Change 'text' column type to CLOB
+
+CREATE TABLE schembl_document_title (
+  schembl_doc_id INTEGER NOT NULL,
   lang VARCHAR(10) NOT NULL,
-  text CLOB NULL,
-  PRIMARY KEY (document_id, lang),
-  CONSTRAINT fk_document_title_doc1
-    FOREIGN KEY (document_id)
-    REFERENCES document (id));
-
-
+  text TEXT NULL,
+  PRIMARY KEY (schembl_doc_id, lang),
+  CONSTRAINT fk_doctitle_to_doc
+    FOREIGN KEY (schembl_doc_id)
+    REFERENCES schembl_document (id));
 
 -- -----------------------------------------------------
--- Table chemical
+-- Table schembl_chemical
 -- -----------------------------------------------------
 
-CREATE TABLE chemical (
-  schemblid INTEGER NOT NULL,
+CREATE TABLE schembl_chemical (
+  id INTEGER NOT NULL,
   mol_weight FLOAT NULL,
   logp FLOAT NULL,
   med_chem_alert SMALLINT NULL,
@@ -89,42 +89,44 @@ CREATE TABLE chemical (
   ring_count SMALLINT NULL,
   rot_bond_count SMALLINT NULL,
   corpus_count INTEGER NULL,
-  PRIMARY KEY (schemblid));
+  PRIMARY KEY (id));
+
 
 
 -- -----------------------------------------------------
--- Table chemical_structure
+-- Table schembl_chemical_structure
 -- -----------------------------------------------------
 
-CREATE TABLE chemical_structure (
-  chemical_schemblid INTEGER NOT NULL,
-  smiles CLOB NULL,
-  std_inchi CLOB NULL,
+-- Oracle: Change 'smiles' and 'std_inchi' column type to CLOB
+
+CREATE TABLE schembl_chemical_structure (
+  schembl_chem_id INTEGER NOT NULL,
+  smiles TEXT NULL,
+  std_inchi TEXT NULL,
   std_inchikey VARCHAR(27) NULL,
-  PRIMARY KEY (chemical_schemblid),
-  CONSTRAINT fk_chemical_structure_chem1
-    FOREIGN KEY (chemical_schemblid)
-    REFERENCES chemical (schemblid));
+  PRIMARY KEY (schembl_chem_id),
+  CONSTRAINT fk_chemstruct_to_chem
+    FOREIGN KEY (schembl_chem_id)
+    REFERENCES schembl_chemical (id));
 
 
 -- -----------------------------------------------------
--- Table document_chemistry
+-- Table schembl_document_chemistry
 -- -----------------------------------------------------
 
-CREATE TABLE document_chemistry (
-  document_id INTEGER NOT NULL,
-  chemical_schemblid INTEGER NOT NULL,
+CREATE TABLE schembl_document_chemistry (
+  schembl_doc_id INTEGER NOT NULL,
+  schembl_chem_id INTEGER NOT NULL,
   field SMALLINT NOT NULL,
   frequency INTEGER NULL,
-  PRIMARY KEY (document_id, chemical_schemblid, field),
-  CONSTRAINT fk_document_chemistry_doc1
-    FOREIGN KEY (document_id)
-    REFERENCES document (id),
-  CONSTRAINT fk_document_chemistry_chem1
-    FOREIGN KEY (chemical_schemblid)
-    REFERENCES chemical (schemblid));
+  PRIMARY KEY (schembl_doc_id, schembl_chem_id, field),
+  CONSTRAINT fk_docchem_to_doc
+    FOREIGN KEY (schembl_doc_id)
+    REFERENCES schembl_document (id),
+  CONSTRAINT fk_docchem_to_chem
+    FOREIGN KEY (schembl_chem_id)
+    REFERENCES schembl_chemical (id));
 
-CREATE INDEX fk_document_chemistry_doc1_idx ON document_chemistry (document_id ASC);
+CREATE INDEX fk_docchem_docid_idx ON schembl_document_chemistry (schembl_doc_id ASC);
 
-CREATE INDEX fk_document_chemistry_chm1_idx ON document_chemistry (chemical_schemblid ASC);
-
+CREATE INDEX fk_docchem_chemid_idx ON schembl_document_chemistry (schembl_chem_id ASC);
