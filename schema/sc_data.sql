@@ -19,13 +19,13 @@ DROP TABLE schembl_document_chemistry ;
 -- -----------------------------------------------------
 
 -- MySQL:  Add AUTO_INCREMENT to 'id'
--- Oracle: Comment-in the following sequence and trigger
+-- Oracle: Comment-in the sequence and trigger
 
 CREATE TABLE schembl_document (
   id INTEGER NOT NULL,
   scpn VARCHAR(50) NOT NULL,
   published DATE NULL,
-  interesting_ipcr SMALLINT NULL,
+  life_sci_relevant SMALLINT NULL,
   family_id INTEGER NULL,
   PRIMARY KEY (id));
 
