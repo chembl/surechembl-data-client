@@ -25,8 +25,8 @@ Depending on your python configuration, you may need to install via sudo, e.g.
 
 The following environment variables are required to use cx_oracle from python:
 
-   ORACLE_HOME=/your/instant_client/install
-   DYLD_LIBRARY_PATH=/your/instant_client/install
+    ORACLE_HOME=/your/instant_client/install
+    DYLD_LIBRARY_PATH=/your/instant_client/install
 
    
 
