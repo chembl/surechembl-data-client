@@ -1,0 +1,10 @@
+SQL script execution
+********************
+
+Oracle:
+echo exit | sqlplus sc_client/surechembl@localhost:1521 @update_test.sql
+
+MySQL:
+mysql -h localhost -u root --force sc_data < update_test.sql
+
+
