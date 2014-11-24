@@ -15,7 +15,7 @@ A collection of scripts for retrieving, storing, and querying SureChEMBL data.
 
 Install the oracle instant client and cx_oracle, as per [these](http://www.cs.utexas.edu/~mitra/csSpring2012/cs327/cx_mac.html) instructions.
 
-Notes:
+*Notes*
 
 You can use pip to install cx_oracle.
 
