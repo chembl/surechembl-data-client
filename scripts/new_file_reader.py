@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import sys
+import os
 import ftplib
 import re
 from datetime import date
@@ -71,6 +72,8 @@ class NewFileReader:
 
     def read_files(self,file_list,target_dir):
 
+        os.makedirs(target_dir)
+
         for file_path in file_list:
 
             matched = re.match(self.FILE_PATH_REGEX, file_path)
@@ -103,3 +106,4 @@ if __name__ == '__main__':
 
 # TODO Add command line arg handling
 # TODO change target dir into param
+# TODO add logging statements

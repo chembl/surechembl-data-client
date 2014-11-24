@@ -1,34 +1,32 @@
 import unittest
 from mock import MagicMock, ANY
 from mock import call
+import shutil
 import datetime
 import ftplib
 
 from new_file_reader import NewFileReader
 
-file_chunk1 = '''\
+chunks = ['''\
 path/to/file/1
 path/to/file/2
-path/to/fi'''
-file_chunk2 = '''\
+path/to/fi''',
+'''\
 le/3
 longer/path/to/different/file/A
-longer/path/to/differe'''
-file_chunk3 = '''\
+longer/path/to/differe''',
+'''\
 nt/file/B
-longer/path/to/different/file/C'''
+longer/path/to/different/file/C''']
 
 def chunk_writer(*args, **kwargs):
     writer_func = args[1]
-    writer_func(file_chunk1)
-    writer_func(file_chunk2)
-    writer_func(file_chunk3)
-
-
+    for chunk in chunks: writer_func(chunk)
 
 class FTPTests(unittest.TestCase):
 
     def setUp(self):
+        shutil.rmtree("/tmp/schembl_ftp_test", True)
         self.ftp = ftplib.FTP()
         self.ftp.cwd        = MagicMock(return_value=None)
         self.ftp.retrbinary = MagicMock(return_value=None)
@@ -60,38 +58,43 @@ class FTPTests(unittest.TestCase):
              ])
 
     def test_get_download_list(self):
-        self.verify_downloads([],[])
-        self.verify_downloads(
+        self.verify_dl_list([],[])
+        self.verify_dl_list(
             ['path/orig.chemicals.tsv', 'path/orig.biblio.json'],
             ['path/orig.biblio.json', 'path/orig.chemicals.tsv'])
-        self.verify_downloads(
+        self.verify_dl_list(
             ['path/new_supp2.chemicals.tsv'],
             ['path/new.biblio.json', 'path/new_supp2.chemicals.tsv'])
-        self.verify_downloads(
+        self.verify_dl_list(
             ['chemicals.json'],
             [])
-        self.verify_downloads(
+        self.verify_dl_list(
             ['path/orig.chemicals.tsv', 'path/orig.biblio.json', 'path/new_supp2.chemicals.tsv', 'other/file'],
             ['path/new.biblio.json', 'path/orig.biblio.json', 'path/new_supp2.chemicals.tsv', 'path/orig.chemicals.tsv'])
 
 
-    def verify_downloads(self, input_list, expected):
+    def verify_dl_list(self, input_list, expected):
         actual = self.reader.select_downloads(input_list)
         self.failUnlessEqual(expected, actual)
 
 
     def test_get_files(self):
-        self.reader.read_files(['path/one/bib.dat','path/two/chem.dat'], '/tmp/')
+        self.reader.read_files(
+            ['path/one/bib.dat','path/two/chem.dat'], '/tmp/schembl_ftp_test')
 
-        calls = [call('/'),
-                 call('path/one/'),
-                 call('/'),
-                 call('path/two/')]
+        calls = [call('/'),call('path/one/'),call('/'),call('path/two/')]
         self.ftp.cwd.assert_has_calls(calls, any_order=False)
 
-        calls = [call("RETR bib.dat", ANY),
-                 call("RETR chem.dat", ANY)]
+        calls = [call("RETR bib.dat", ANY),call("RETR chem.dat", ANY)]
         self.ftp.retrbinary.assert_has_calls(calls, any_order=False)
+
+        file_content = reduce(lambda dat, chunk: dat+chunk, chunks, "")
+        self.verify_dl_content("/tmp/schembl_ftp_test/bib.dat",  file_content)
+        self.verify_dl_content("/tmp/schembl_ftp_test/chem.dat", file_content)
+
+    def verify_dl_content(self, file_path, expected):
+        content = open(file_path).read()
+        self.failUnlessEqual(content, expected)
 
 
 def main():
