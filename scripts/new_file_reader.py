@@ -97,7 +97,7 @@ def main():
     file_list     = reader.new_files( date.today() )
     download_list = reader.select_downloads( file_list )
 
-    reader.read_files( download_list, '/tmp' )
+    reader.read_files( download_list, '/tmp/schembl_ftp_data' )
 
 
 if __name__ == '__main__':
@@ -107,3 +107,5 @@ if __name__ == '__main__':
 # TODO Add command line arg handling
 # TODO change target dir into param
 # TODO add logging statements
+# TODO test file read handles unicode content
+# TODO ensure .gz files are downloaded
