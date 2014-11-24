@@ -7,6 +7,15 @@ from datetime import date
 
 class NewFileReader:
 
+    NEW_FILES_LOC  = "data/external/frontfile/{0}/{1}/{2:02d}"
+    NEW_FILES_NAME = "newfiles.txt"
+
+    SUFFIX_CHEM    = ".chemicals.tsv"
+    SUFFIX_BIBLIO  = ".biblio.json"
+
+    SUPP_CHEM_REGEX = r"_supp[0-9]+.chemicals.tsv"
+    FILE_PATH_REGEX = r"(.*/)([^/]+$)"
+
     def __init__(self, ftp):
         '''
         Initializes the NewFileReader
@@ -14,7 +23,7 @@ class NewFileReader:
         '''
 
         self.ftp = ftp
-        self.supp_regex = re.compile('_supp[0-9]+.chemicals.tsv')
+        self.supp_regex = re.compile(self.SUPP_CHEM_REGEX)
 
 
     def new_files(self, from_date):
@@ -24,18 +33,18 @@ class NewFileReader:
         :return: List of file path strings, retrieved from the list of new files.
         '''
 
-        target_dir = "data/external/frontfile/{0}/{1}/{2:02d}".format(
+        new_files_loc = self.NEW_FILES_LOC.format(
             from_date.year,
             from_date.month,
             from_date.day)
 
-        self.ftp.cwd( target_dir )
+        self.ftp.cwd( new_files_loc )
 
         data = []
         def handle_binary(more_data):
             data.append(more_data)
 
-        self.ftp.retrbinary("RETR newfiles.txt", handle_binary)
+        self.ftp.retrbinary("RETR " + self.NEW_FILES_NAME, handle_binary)
 
         content = "".join(data)
 
@@ -47,15 +56,15 @@ class NewFileReader:
         chem_files = set()
 
         for file in file_list:
-            if file.endswith('.biblio.json'):
+            if file.endswith(self.SUFFIX_BIBLIO):
                 bibl_files.add(file)
-            elif file.endswith('.chemicals.tsv'):
+            elif file.endswith(self.SUFFIX_CHEM):
                 chem_files.add(file)
 
         supp_chems = filter( lambda f: self.supp_regex.search(f), file_list )
 
         for sc in supp_chems:
-            bibl_files.add( self.supp_regex.sub('.biblio.json', sc) )
+            bibl_files.add( self.supp_regex.sub(self.SUFFIX_BIBLIO, sc) )
 
         return sorted(bibl_files) + sorted(chem_files)
 
@@ -64,7 +73,7 @@ class NewFileReader:
 
         for file_path in file_list:
 
-            matched = re.match(r'(.*/)([^/]+$)', file_path)
+            matched = re.match(self.FILE_PATH_REGEX, file_path)
             path = matched.group(1)
             file = matched.group(2)
 
@@ -93,4 +102,4 @@ if __name__ == '__main__':
 
 
 # TODO Add command line arg handling
-# TODO Strings into constants
+# TODO change target dir into param
