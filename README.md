@@ -28,6 +28,19 @@ The following environment variables are required to use cx_oracle from python:
     ORACLE_HOME=/your/instant_client/install
     DYLD_LIBRARY_PATH=/your/instant_client/install
 
+## Running the tests
+
+
+
    
+## To do list
+
+### New File Reader
+
+* TODO Add command line arg handling (min)
+* TODO change target directory into a param
+* TODO add logging framework
+* TODO ensure .gz files are downloaded
+* TODO Add __author__ = 'jsiddle'
 
 

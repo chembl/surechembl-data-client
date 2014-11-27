@@ -83,7 +83,8 @@ class NewFileReader:
         '''
 
         print "Creating target directory for download: [{}]".format(target_dir)
-        os.makedirs(target_dir, True)
+        if not os.path.exists(target_dir):
+            os.makedirs(target_dir, mode=0755)
 
         for file_path in file_list:
 
@@ -117,7 +118,3 @@ if __name__ == '__main__':
     main()
 
 
-# TODO Add command line arg handling
-# TODO change target dir into param
-# TODO add logging statements
-# TODO ensure .gz files are downloaded

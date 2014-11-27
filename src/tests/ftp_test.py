@@ -1,11 +1,13 @@
 import unittest
-from mock import MagicMock, ANY
-from mock import call
 import shutil
 import datetime
 import ftplib
 
-from new_file_reader import NewFileReader
+from mock import MagicMock, ANY
+from mock import call
+
+from src.scripts.new_file_reader import NewFileReader
+
 
 chunks = ['''\
 path/to/file/1
@@ -26,7 +28,7 @@ def chunk_writer(*args, **kwargs):
 class FTPTests(unittest.TestCase):
 
     def setUp(self):
-        shutil.rmtree("/tmp/schembl_ftp_test", True)
+        # shutil.rmtree("/tmp/schembl_ftp_test", True)
         self.ftp = ftplib.FTP()
         self.ftp.cwd        = MagicMock(return_value=None)
         self.ftp.retrbinary = MagicMock(return_value=None)
