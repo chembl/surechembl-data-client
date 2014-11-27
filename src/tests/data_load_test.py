@@ -1,6 +1,6 @@
 import unittest
 from datetime import date
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, Column, Integer, Sequence
 
 from src.scripts.data_loader import DataLoader
 
@@ -35,8 +35,8 @@ class DataLoaderTests(unittest.TestCase):
         self.failUnlessEqual( (25,'WO-2013189394-A2',date(2013,12,27),1,49769540), rows[24] )
 
     def test_sequence_definitions(self):
-        metadata = self.loader.db_metadata()
-        print metadata.tables['schembl_document']
+        mdata = self.loader.db_metadata()
+        self.failUnlessEqual( 'schembl_document_id', mdata.tables['schembl_document'].c.id.default.name )
 
 
     def load_n_query(self, data_file):
@@ -49,18 +49,6 @@ class DataLoaderTests(unittest.TestCase):
 
         result = self.db.execute(s)
         return result
-
-
-# TODO incrementing ids / sequence
-# TODO field sizes asserted
-# TODO life science relevant function
-# TODO duplicate SCPN
-# TODO empty values rejected (or accepted)
-# TODO optimize insertion
-# TODO titles and classifications inserted
-# TODO introduce transactions
-
-
 
 
 def main():

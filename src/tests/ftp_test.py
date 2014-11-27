@@ -62,17 +62,17 @@ class FTPTests(unittest.TestCase):
     def test_get_download_list(self):
         self.verify_dl_list([],[])
         self.verify_dl_list(
-            ['path/orig.chemicals.tsv', 'path/orig.biblio.json'],
-            ['path/orig.biblio.json', 'path/orig.chemicals.tsv'])
+            ['path/orig.chemicals.tsv.gz', 'path/orig.biblio.json.gz'],
+            ['path/orig.biblio.json.gz', 'path/orig.chemicals.tsv.gz'])
         self.verify_dl_list(
-            ['path/new_supp2.chemicals.tsv'],
-            ['path/new.biblio.json', 'path/new_supp2.chemicals.tsv'])
+            ['path/new_supp2.chemicals.tsv.gz'],
+            ['path/new.biblio.json.gz', 'path/new_supp2.chemicals.tsv.gz'])
         self.verify_dl_list(
             ['chemicals.json'],
             [])
         self.verify_dl_list(
-            ['path/orig.chemicals.tsv', 'path/orig.biblio.json', 'path/new_supp2.chemicals.tsv', 'other/file'],
-            ['path/new.biblio.json', 'path/orig.biblio.json', 'path/new_supp2.chemicals.tsv', 'path/orig.chemicals.tsv'])
+            ['path/orig.chemicals.tsv.gz', 'path/orig.biblio.json.gz', 'path/new_supp2.chemicals.tsv.gz', 'other/file'],
+            ['path/new.biblio.json.gz', 'path/orig.biblio.json.gz', 'path/new_supp2.chemicals.tsv.gz', 'path/orig.chemicals.tsv.gz'])
 
 
     def verify_dl_list(self, input_list, expected):

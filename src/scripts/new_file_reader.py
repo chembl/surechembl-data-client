@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import sys
 import os
 import ftplib
@@ -11,10 +9,10 @@ class NewFileReader:
     NEW_FILES_LOC  = "data/external/frontfile/{0}/{1}/{2:02d}"
     NEW_FILES_NAME = "newfiles.txt"
 
-    SUFFIX_CHEM    = ".chemicals.tsv"
-    SUFFIX_BIBLIO  = ".biblio.json"
+    SUFFIX_CHEM    = ".chemicals.tsv.gz"
+    SUFFIX_BIBLIO  = ".biblio.json.gz"
 
-    SUPP_CHEM_REGEX = r"_supp[0-9]+.chemicals.tsv"
+    SUPP_CHEM_REGEX = r"_supp[0-9]+.chemicals.tsv.gz"
     FILE_PATH_REGEX = r"(.*/)([^/]+$)"
 
     def __init__(self, ftp):
@@ -72,7 +70,10 @@ class NewFileReader:
         for sc in supp_chems:
             bibl_files.add( self.supp_regex.sub(self.SUFFIX_BIBLIO, sc) )
 
-        return sorted(bibl_files) + sorted(chem_files)
+        download_list = sorted(bibl_files) + sorted(chem_files)
+        print "Selected {} for download".format( len(download_list) )
+
+        return download_list
 
 
     def read_files(self,file_list,target_dir):
@@ -104,23 +105,9 @@ class NewFileReader:
 
 
 
-def main():
-    '''Default behaviour for the file reader: get today's file list, print to standard out'''
-    ftp = ftplib.FTP('ftp-private.ebi.ac.uk', sys.argv[1], sys.argv[2])
-    reader        = NewFileReader(ftp)
-    file_list     = reader.new_files( date.today() )
-    download_list = reader.select_downloads( file_list )
-
-    reader.read_files( download_list, '/tmp/schembl_ftp_data' )
-
-
-if __name__ == '__main__':
-    main()
-
 
 
 # TODO Add command line arg handling (min)
 # TODO change target directory into a param
 # TODO add logging framework
-# TODO ensure .gz files are downloaded
 # TODO Add __author__ = 'jsiddle'
