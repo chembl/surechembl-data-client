@@ -118,3 +118,9 @@ if __name__ == '__main__':
     main()
 
 
+
+# TODO Add command line arg handling (min)
+# TODO change target directory into a param
+# TODO add logging framework
+# TODO ensure .gz files are downloaded
+# TODO Add __author__ = 'jsiddle'

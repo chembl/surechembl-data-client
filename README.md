@@ -32,15 +32,7 @@ The following environment variables are required to use cx_oracle from python:
 
 
 
-   
-## To do list
 
-### New File Reader
 
-* TODO Add command line arg handling (min)
-* TODO change target directory into a param
-* TODO add logging framework
-* TODO ensure .gz files are downloaded
-* TODO Add __author__ = 'jsiddle'
 
 
