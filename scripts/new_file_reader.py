@@ -48,10 +48,15 @@ class NewFileReader:
         self.ftp.retrbinary("RETR " + self.NEW_FILES_NAME, handle_binary)
 
         content = "".join(data)
+        file_list = content.split('\n')
 
-        return content.split('\n')
+        print "Discovered {} new files for {}".format(len(file_list), from_date)
+
+        return file_list
 
     def select_downloads(self, file_list):
+
+        print "Selecting files to download"
 
         bibl_files = set()
         chem_files = set()
@@ -71,10 +76,18 @@ class NewFileReader:
 
 
     def read_files(self,file_list,target_dir):
+        '''
+        Download the given files from the FTP server, into the given target folder.
+        :param file_list: List of file paths, relative to the FTP server
+        :param target_dir: Local file path to store the downloads in; will be created if non-existent
+        '''
 
-        os.makedirs(target_dir)
+        print "Creating target directory for download: [{}]".format(target_dir)
+        os.makedirs(target_dir, True)
 
         for file_path in file_list:
+
+            print "Downloading [{}]".format(file_path)
 
             matched = re.match(self.FILE_PATH_REGEX, file_path)
             path = matched.group(1)
@@ -107,5 +120,4 @@ if __name__ == '__main__':
 # TODO Add command line arg handling
 # TODO change target dir into param
 # TODO add logging statements
-# TODO test file read handles unicode content
 # TODO ensure .gz files are downloaded
