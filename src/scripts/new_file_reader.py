@@ -48,6 +48,7 @@ class NewFileReader:
         content = "".join(data)
         file_list = content.split('\n')
 
+        # TODO add logging framework
         print "Discovered {} new files for {}".format(len(file_list), from_date)
 
         return file_list
@@ -82,6 +83,7 @@ class NewFileReader:
         :param file_list: List of file paths, relative to the FTP server
         :param target_dir: Local file path to store the downloads in; will be created if non-existent
         '''
+        # TODO add python docs throughout
 
         print "Creating target directory for download: [{}]".format(target_dir)
         if not os.path.exists(target_dir):
@@ -100,15 +102,8 @@ class NewFileReader:
             self.ftp.cwd( '/' )
             self.ftp.cwd( path )
             self.ftp.retrbinary("RETR " + file, fhandle.write)
+            # TODO resilient download / error checking / retry
 
             fhandle.close()
 
 
-
-
-
-# TODO Add command line arg handling (min)
-# TODO change target directory into a param
-# TODO add logging framework
-# TODO Add __author__ = 'jsiddle'
-# TODO resilient download / error checking

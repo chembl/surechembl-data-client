@@ -27,9 +27,12 @@ def main():
     file_list     = reader.new_files( date.today() )
     download_list = reader.select_downloads( file_list )
 
+    # TODO change target directory into a param
+
     reader.read_files( download_list, '/tmp/schembl_ftp_data' )
     print "Download complete"
 
+    # TODO error handling - no files for today?
 
     # Connect to the DB, and load the data
     db = get_db_engine(args.db_user, args.db_pass)
@@ -66,4 +69,3 @@ def get_db_engine(user,password):
 if __name__ == '__main__':
     main()
 
-# TODO error handling - no files for today?

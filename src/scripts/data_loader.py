@@ -24,6 +24,8 @@ class DataLoader:
                      Column('life_sci_relevant', SmallInteger()),
                      Column('family_id',         Integer))
 
+        # TODO field sizes asserted
+
 
     def db_metadata(self):
         return self.metadata
@@ -40,7 +42,10 @@ class DataLoader:
 
             transaction = conn.begin()
 
+            # TODO Multiple inserts?
             for bib in chunk:
+
+                # TODO empty values rejected (or accepted)
 
                 # TODO improve handling of default list extraction
                 pubdate = datetime.strptime( bib['pubdate'][0], '%Y%m%d')
@@ -51,26 +56,32 @@ class DataLoader:
                     family_id         = bib['family_id'][0],
                     life_sci_relevant = 1 )
 
+                # TODO duplicate SCPN
+                # TODO life science relevant function
+
+
                 ins = self.docs.insert().values( record )
 
                 result = conn.execute(ins)
 
                 print result.inserted_primary_key
 
+                # TODO retrieve full set of document IDs (pre-load?)
+                # TODO param to disable document ID query
+
+                # TODO titles and classifications inserted
+
+
+            # TODO appropriate transaction scope
             transaction.commit()
 
         conn.close()
+        codecs.close()
 
 
 
 
-# TODO field sizes asserted
-# TODO life science relevant function
-# TODO duplicate SCPN
-# TODO empty values rejected (or accepted)
-# TODO titles and classifications inserted
-# TODO introduce transactions
-# TODO Multiple inserts?
+
 
 
 
