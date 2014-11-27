@@ -31,9 +31,6 @@ def main():
     print "Download complete"
 
 
-
-
-
     # Connect to the DB, and load the data
     db = get_db_engine(args.db_user, args.db_pass)
 
@@ -58,6 +55,9 @@ def get_db_engine(user,password):
             user,password,host,port,db_name
         ),
         echo=True)
+
+    # Note: If there are stability issues, add
+    # "implicit_returning=False" to the parameter list
 
     return db
 

@@ -36,22 +36,28 @@ class DataLoader:
 
         conn = self.db.connect()
 
-        for bib in biblio:
+        for chunk in chunks(biblio, 5):
 
-            # TODO improve handling of default list extraction
-            pubdate = datetime.strptime( bib['pubdate'][0], '%Y%m%d')
+            transaction = conn.begin()
 
-            record = dict(
-                scpn              = bib['pubnumber'][0],
-                published         = pubdate,
-                family_id         = bib['family_id'][0],
-                life_sci_relevant = 1 )
+            for bib in chunk:
 
-            ins = self.docs.insert().values( record )
+                # TODO improve handling of default list extraction
+                pubdate = datetime.strptime( bib['pubdate'][0], '%Y%m%d')
 
-            result = conn.execute(ins)
+                record = dict(
+                    scpn              = bib['pubnumber'][0],
+                    published         = pubdate,
+                    family_id         = bib['family_id'][0],
+                    life_sci_relevant = 1 )
 
-            print result.inserted_primary_key
+                ins = self.docs.insert().values( record )
+
+                result = conn.execute(ins)
+
+                print result.inserted_primary_key
+
+            transaction.commit()
 
         conn.close()
 
@@ -64,7 +70,7 @@ class DataLoader:
 # TODO empty values rejected (or accepted)
 # TODO titles and classifications inserted
 # TODO introduce transactions
-
+# TODO Multiple inserts?
 
 
 

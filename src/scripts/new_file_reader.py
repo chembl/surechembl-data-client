@@ -111,3 +111,4 @@ class NewFileReader:
 # TODO change target directory into a param
 # TODO add logging framework
 # TODO Add __author__ = 'jsiddle'
+# TODO resilient download / error checking
