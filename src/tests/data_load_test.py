@@ -27,7 +27,7 @@ class DataLoaderTests(unittest.TestCase):
         self.verify_doc(row, (1,'WO-2013127697-A1',date(2013,9,6),1,47747634))
 
     def test_write_docs_many(self):
-        result = self.load_n_query('data/biblio_all_round.json')
+        result = self.load_n_query('data/biblio_typical.json')
         rows = result.fetchall()
         self.failUnlessEqual( 25, len(rows) )
         self.verify_doc( rows[0], (1,'WO-2013127697-A1',date(2013,9,6),1,47747634) )
@@ -39,7 +39,7 @@ class DataLoaderTests(unittest.TestCase):
         self.failUnlessEqual( 'schembl_document_id', mdata.tables['schembl_document'].c.id.default.name )
 
     def test_titles(self):
-        result = self.load_n_query('data/biblio_all_round.json', 'schembl_document_title')
+        result = self.load_n_query('data/biblio_typical.json', ['schembl_document_title'])
         rows = result.fetchall()
         self.failUnlessEqual( 62, len(rows) )
         self.verify_title( rows[0],  (1, "DE", u"VERWENDUNG EINES LATENTREAKTIVEN KLEBEFILMS ZUR VERKLEBUNG VON ELOXIERTEM ALUMINIUM MIT KUNSTSTOFF") )
@@ -53,12 +53,12 @@ class DataLoaderTests(unittest.TestCase):
         self.verify_title( rows[61], (25,"ZH", u"一种物联网终端设备的资源信息获取方法、系统及设备") )
 
     def test_classifications_simple(self):
-        result = self.load_n_query('data/biblio_single_row.json', 'schembl_document_class')
+        result = self.load_n_query('data/biblio_single_row.json', ['schembl_document_class'])
         rows = result.fetchall()
         self.verify_class( rows[0], (1, "B29C", DocumentClass.IPC) )
 
     def test_classifications_all(self):
-        self.load_n_query('data/biblio_all_round.json')
+        self.load_n_query('data/biblio_typical.json')
 
         # Check a document with all classifications
         self.verify_classes( 1, DocumentClass.IPC,  ["B29C"])
@@ -81,29 +81,50 @@ class DataLoaderTests(unittest.TestCase):
     ###### Chem loading tests ######
 
     def test_write_chem_record(self):
-        result = self.load_n_query('data/chem_single_row.tsv', table='schembl_chemical', type='chem')
+        result = self.load_n_query('data/chem_single_row.tsv', ['schembl_chemical'], type='chem')
         self.verify_chemical( result.fetchone(), (9724,960.805,86708,1,0,1.135,4,20,6,9) )
 
     def test_write_chem_text(self):
-        result = self.load_n_query('data/chem_single_row.tsv', table='schembl_chemical_structure', type='chem')
+        result = self.load_n_query('data/chem_single_row.tsv', ['schembl_chemical_structure'], type='chem')
         self.verify_chemical_structure( result.fetchone(),
             (9724, "[Na+].[Na+].[Na+].[Na+].CC1=CC(=CC=C1\N=N\C1=C(O)C2=C(N)C=C(C=C2C=C1S([O-])(=O)=O)S([O-])(=O)=O)C1=CC(C)=C(C=C1)\N=N\C1=C(O)C2=C(N)C=C(C=C2C=C1S([O-])(=O)=O)S([O-])(=O)=O",
              "InChI=1S/C34H28N6O14S4.4Na/c1-15-7-17(3-5-25(15)37-39-31-27(57(49,50)51)11-19-9-21(55(43,44)45)13-23(35)29(19)33(31)41)18-4-6-26(16(2)8-18)38-40-32-28(58(52,53)54)12-20-10-22(56(46,47)48)14-24(36)30(20)34(32)42;;;;/h3-14,41-42H,35-36H2,1-2H3,(H,43,44,45)(H,46,47,48)(H,49,50,51)(H,52,53,54);;;;/q;4*+1/p-4/b39-37+,40-38+;;;;",
              "GLNADSQYFUSGOU-GPTZEZBUSA-J"))
 
-    # n chemicals / structs
-    # duplication
+    def test_typical_file(self):
+        # Load chemical data, and check: 1) Many structures loaded, 2) duplicates handled,
+        # 3) different values (for bools, ints, negation etc). Rows are assumed to return
+        # in insertion order, matching input file
+        self.loader.load_chems( 'data/chem_typical.tsv' )
+
+        chem_table   = self.metadata.tables['schembl_chemical']
+        struct_table = self.metadata.tables['schembl_chemical_structure']
+        s = select( [chem_table, struct_table] )\
+            .where( chem_table.c.id == struct_table.c.schembl_chem_id )\
+            .order_by( chem_table.c.id )
+
+        rows = self.db.execute(s).fetchall()
+        self.failUnlessEqual( 19, len(rows) )
+
+        self.verify_chemical( rows[0], (48,	  94.111,  2930353, 0, 0, 1.67,   1, 1, 1, 0) )
+        self.verify_chemical( rows[2], (1645, 146.188, 1077470, 1, 0, -3.215, 3, 4, 0, 5) )
+        self.verify_chemical( rows[8], (3001, 206.281, 275677,  1, 1, 3.844,  1, 2, 1, 4) )
+
+        self.verify_chemical_structure( rows[0], (48, 'OC1=CC=CC=C1', 'InChI=1S/C6H6O/c7-6-4-2-1-3-5-6/h1-5,7H', 'ISWSIDIOOBJBQZ-UHFFFAOYSA-N') )
+        self.verify_chemical_structure( rows[2], (1645, 'NCCCCC(N)C(O)=O', 'InChI=1S/C6H14N2O2/c7-4-2-1-3-5(8)6(9)10/h5H,1-4,7-8H2,(H,9,10)', 'KDXKERNSBIXSRK-UHFFFAOYSA-N') )
+        self.verify_chemical_structure( rows[8], (3001, 'CC(C)CC1=CC=C(C=C1)C(C)C(O)=O', 'InChI=1S/C13H18O2/c1-9(2)8-11-4-6-12(7-5-11)10(3)13(14)15/h4-7,9-10H,8H2,1-3H3,(H,14,15)', 'HEFNNWSXXWATRW-UHFFFAOYSA-N') )
+
 
 
     ###### Support methods #######
 
-    def load_n_query(self, data_file, table='schembl_document', type='bib', where_clause=(True == True), order_by_clause=('')):
+    def load_n_query(self, data_file, table=['schembl_document'], type='bib', where_clause=(True == True), order_by_clause=('')):
         if type == 'bib':
             self.loader.load_biblio( data_file )
         elif type == 'chem':
             self.loader.load_chems( data_file )
 
-        s = select( [self.metadata.tables[table]] ).where( where_clause ).order_by( order_by_clause )
+        s = select( [self.metadata.tables[table[0]]] ).where( where_clause ).order_by( order_by_clause )
 
         result = self.db.execute(s)
         return result

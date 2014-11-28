@@ -2,7 +2,7 @@ import codecs
 import json
 import csv
 from datetime import datetime
-from sqlalchemy import MetaData, Table, ForeignKey, Column, Sequence, Integer, Float, String, SmallInteger, Date, Text
+from sqlalchemy import MetaData, Table, ForeignKey, Column, Sequence, Integer, Float, String, SmallInteger, Date, Text, select
 
 class DocumentClass:
 
@@ -21,6 +21,7 @@ class DataLoader:
     def __init__(self, db):
         self.db = db
         self.metadata = MetaData()
+        self.existing_chemicals = set()
 
         # TODO field sizes asserted - all
         self.docs = Table('schembl_document', self.metadata,
@@ -153,6 +154,19 @@ class DataLoader:
 
             chem_id = int( row[1] )
 
+            if chem_id in self.existing_chemicals:
+                continue
+
+            sel = select([self.chemicals.c.id]).where( (self.chemicals.c.id == chem_id) )
+            result = conn.execute(sel)
+
+            if result.fetchone() is not None:
+                self.existing_chemicals.add(chem_id)
+                result.close()
+                continue
+            else:
+                result.close()
+
             transaction = conn.begin()
             record = {
                 'id'             : chem_id,
@@ -178,8 +192,6 @@ class DataLoader:
             result = conn.execute(chem_struc_ins, record)
 
             transaction.commit()
-
-    # TODO invalid csv header rejected
 
 
 def chunks(l, n):
