@@ -19,15 +19,14 @@ class DataLoaderTests(unittest.TestCase):
     def test_create_doc_loader(self):
         self.failUnless( isinstance(self.loader, DataLoader) )
 
+    ###### Biblio loading tests ######
 
     def test_write_document_record(self):
-
         result = self.load_n_query('data/biblio_single_row.json')
         row = result.fetchone()
         self.verify_doc(row, (1,'WO-2013127697-A1',date(2013,9,6),1,47747634))
 
     def test_write_docs_many(self):
-
         result = self.load_n_query('data/biblio_all_round.json')
         rows = result.fetchall()
         self.failUnlessEqual( 25, len(rows) )
@@ -78,25 +77,61 @@ class DataLoaderTests(unittest.TestCase):
         self.verify_classes( 25, DocumentClass.IPCR, ["H04L 29/08"])
         self.verify_classes( 25, DocumentClass.CPC,  ["H04L 29/08"])
 
-    def load_n_query(self, data_file, table='schembl_document', where_clause=(True == True), order_by_clause=('')):
 
-        self.loader.load( data_file )
+    ###### Chem loading tests ######
+
+    def test_write_chem_record(self):
+        result = self.load_n_query('data/chem_single_row.tsv', table='schembl_chemical', type='chem')
+        self.verify_chemical( result.fetchone(), (9724,960.805,86708,1,0,1.135,4,20,6,9) )
+
+    def test_write_chem_text(self):
+        result = self.load_n_query('data/chem_single_row.tsv', table='schembl_chemical_structure', type='chem')
+        self.verify_chemical_structure( result.fetchone(),
+            (9724, "[Na+].[Na+].[Na+].[Na+].CC1=CC(=CC=C1\N=N\C1=C(O)C2=C(N)C=C(C=C2C=C1S([O-])(=O)=O)S([O-])(=O)=O)C1=CC(C)=C(C=C1)\N=N\C1=C(O)C2=C(N)C=C(C=C2C=C1S([O-])(=O)=O)S([O-])(=O)=O",
+             "InChI=1S/C34H28N6O14S4.4Na/c1-15-7-17(3-5-25(15)37-39-31-27(57(49,50)51)11-19-9-21(55(43,44)45)13-23(35)29(19)33(31)41)18-4-6-26(16(2)8-18)38-40-32-28(58(52,53)54)12-20-10-22(56(46,47)48)14-24(36)30(20)34(32)42;;;;/h3-14,41-42H,35-36H2,1-2H3,(H,43,44,45)(H,46,47,48)(H,49,50,51)(H,52,53,54);;;;/q;4*+1/p-4/b39-37+,40-38+;;;;",
+             "GLNADSQYFUSGOU-GPTZEZBUSA-J"))
+
+    # n chemicals / structs
+    # duplication
+
+
+    ###### Support methods #######
+
+    def load_n_query(self, data_file, table='schembl_document', type='bib', where_clause=(True == True), order_by_clause=('')):
+        if type == 'bib':
+            self.loader.load_biblio( data_file )
+        elif type == 'chem':
+            self.loader.load_chems( data_file )
+
         s = select( [self.metadata.tables[table]] ).where( where_clause ).order_by( order_by_clause )
 
         result = self.db.execute(s)
         return result
 
     def verify_doc(self, row, expected):
-        self.failUnlessEqual( expected[0], row['id'] )
-        self.failUnlessEqual( expected[1], row['scpn'] )
-        self.failUnlessEqual( expected[2], row['published'] )
-        self.failUnlessEqual( expected[3], row['life_sci_relevant'] )
-        self.failUnlessEqual( expected[4], row['family_id'] )
+        fields = ['id','scpn','published','life_sci_relevant','family_id']
+        self.verify_row(row, fields, expected)
 
     def verify_title(self, row, expected):
-        self.failUnlessEqual( expected[0], row['schembl_doc_id'] )
-        self.failUnlessEqual( expected[1], row['lang'] )
-        self.failUnlessEqual( expected[2], row['text'] )
+        fields = ['schembl_doc_id','lang','text']
+        self.verify_row(row, fields, expected)
+
+    def verify_class(self, row, expected):
+        fields = ['schembl_doc_id','class','system']
+        self.verify_row(row, fields, expected)
+
+    def verify_chemical(self, row, expected):
+        fields = ['id','mol_weight','corpus_count','med_chem_alert','is_relevant','logp','donor_count','acceptor_count','ring_count','rot_bond_count']
+        self.verify_row(row, fields, expected)
+
+    def verify_chemical_structure(self, row, expected):
+        fields = ['schembl_chem_id','smiles','std_inchi','std_inchikey']
+        self.verify_row(row, fields, expected)
+
+    def verify_row(self,row,fields,expected):
+        for i,field in enumerate(fields):
+            self.failUnlessEqual( expected[i], row[field] )
+
 
     def verify_classes(self, doc, system, classes):
         classif_table = self.metadata.tables['schembl_document_class']
@@ -110,13 +145,6 @@ class DataLoaderTests(unittest.TestCase):
 
         for i,row in enumerate(rows):
             self.verify_class(row, (doc, classes[i], system) )
-
-    def verify_class(self, row, expected):
-        self.failUnlessEqual( expected[0], row['schembl_doc_id'] )
-        self.failUnlessEqual( expected[1], row['class'] )
-        self.failUnlessEqual( expected[2], row['system'] )
-
-
 
 def main():
     unittest.main()

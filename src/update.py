@@ -1,5 +1,7 @@
 #!/usr/bin/env python
+# -*- coding: UTF-8 -*-
 
+import os
 import sys
 import ftplib
 from datetime import date
@@ -8,6 +10,7 @@ import cx_Oracle
 from sqlalchemy import create_engine
 from scripts.new_file_reader import NewFileReader
 from scripts.data_loader import DataLoader
+
 
 
 def main():
@@ -22,15 +25,15 @@ def main():
     args = parser.parse_args()
 
     # Download today's data files for processing
-    ftp = ftplib.FTP('ftp-private.ebi.ac.uk', args.ftp_user, args.ftp_pass)
-    reader        = NewFileReader(ftp)
-    file_list     = reader.new_files( date.today() )
-    download_list = reader.select_downloads( file_list )
+    # ftp = ftplib.FTP('ftp-private.ebi.ac.uk', args.ftp_user, args.ftp_pass)
+    # reader        = NewFileReader(ftp)
+    # file_list     = reader.new_files( date.today() )
+    # download_list = reader.select_downloads( file_list )
 
     # TODO change target directory into a param
 
-    reader.read_files( download_list, '/tmp/schembl_ftp_data' )
-    print "Download complete"
+    # reader.read_files( download_list, '/tmp/schembl_ftp_data' )
+    # print "Download complete"
 
     # TODO error handling - no files for today?
 
@@ -38,7 +41,7 @@ def main():
     db = get_db_engine(args.db_user, args.db_pass)
 
     loader = DataLoader(db)
-    loader.load('/Users/jsiddle/workspaces/surechembl/surechembl-data-client/src/tests/data/biblio_all_round.json')
+    loader.load_biblio('/Users/jsiddle/workspaces/surechembl/surechembl-data-client/working/python_exercises/2013-600001-637469.biblio.json')
 
 
 
@@ -48,6 +51,8 @@ def main():
 
 
 def get_db_engine(user,password):
+
+    os.environ["NLS_LANG"] = ".AL32UTF8"
 
     host = "127.0.0.1"
     port = "1521"
