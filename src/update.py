@@ -15,12 +15,15 @@ from scripts.data_loader import DataLoader
 
 def main():
 
+    # TODO change target directory into a param
+
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Update the SureChEMBL database with today''s data export')
-    parser.add_argument('ftp_user', metavar='fu', type=str, help='Username for accessing the EBI FTP site')
-    parser.add_argument('ftp_pass', metavar='fp', type=str, help='Password for accessing the EBI FTP site')
-    parser.add_argument('db_user',  metavar='du', type=str, help='Username for accessing the database')
-    parser.add_argument('db_pass',  metavar='dp', type=str, help='Password for accessing the database')
+    parser.add_argument('ftp_user',    metavar='fu', type=str, help='Username for accessing the EBI FTP site')
+    parser.add_argument('ftp_pass',    metavar='fp', type=str, help='Password for accessing the EBI FTP site')
+    parser.add_argument('db_user',     metavar='du', type=str, help='Username for accessing the database')
+    parser.add_argument('db_pass',     metavar='dp', type=str, help='Password for accessing the database')
+    parser.add_argument('working_dir', metavar='w',  type=str, help='Working directory for downloaded files')
 
     args = parser.parse_args()
 
@@ -29,10 +32,7 @@ def main():
     # reader        = NewFileReader(ftp)
     # file_list     = reader.new_files( date.today() )
     # download_list = reader.select_downloads( file_list )
-
-    # TODO change target directory into a param
-
-    # reader.read_files( download_list, '/tmp/schembl_ftp_data' )
+    # reader.read_files( download_list, args.working_dir )
     # print "Download complete"
 
     # TODO error handling - no files for today?
@@ -42,9 +42,7 @@ def main():
 
     loader = DataLoader(db)
     loader.load_biblio('/Users/jsiddle/workspaces/surechembl/surechembl-data-client/working/python_exercises/2013-600001-637469.biblio.json')
-
-
-
+    loader.load_chems('/Users/jsiddle/workspaces/surechembl/surechembl-data-client/working/python_exercises/2013-600001-637469.chemicals.tsv')
 
 
 
@@ -52,10 +50,13 @@ def main():
 
 def get_db_engine(user,password):
 
+    # Note: If there are stability issues, try adding
+    # "implicit_returning=False" to the parameter list
+
     os.environ["NLS_LANG"] = ".AL32UTF8"
 
-    host = "127.0.0.1"
-    port = "1521"
+    host    = "127.0.0.1"
+    port    = "1521"
     db_name = "XE"
 
     db = create_engine(
@@ -63,9 +64,6 @@ def get_db_engine(user,password):
             user,password,host,port,db_name
         ),
         echo=True)
-
-    # Note: If there are stability issues, add
-    # "implicit_returning=False" to the parameter list
 
     return db
 

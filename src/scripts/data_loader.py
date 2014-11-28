@@ -167,6 +167,7 @@ class DataLoader:
             else:
                 result.close()
 
+            # TODO handle missing columns
             transaction = conn.begin()
             record = {
                 'id'             : chem_id,
