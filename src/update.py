@@ -40,10 +40,10 @@ def main():
         extract_date = datetime.strptime(args.date, '%Y%m%d')
 
     # Clean up any files in the download dir
-    call("rm {}/biblio.json".format(args.working_dir), shell=True)
-    call("rm {}/biblio.json.gz".format(args.working_dir), shell=True)
-    call("rm {}/chemicals.tsv".format(args.working_dir), shell=True)
-    call("rm {}/chemicals.tsv.gz".format(args.working_dir), shell=True)
+    call("rm {}/*biblio.json".format(args.working_dir), shell=True)
+    call("rm {}/*biblio.json.gz".format(args.working_dir), shell=True)
+    call("rm {}/*chemicals.tsv".format(args.working_dir), shell=True)
+    call("rm {}/*chemicals.tsv.gz".format(args.working_dir), shell=True)
 
 
     # Download today's data files for processing
