@@ -6,7 +6,6 @@ from datetime import datetime
 from sqlalchemy import MetaData, Table, ForeignKey, Column, Sequence, Integer, Float, String, SmallInteger, Date, Text, select
 
 logger = logging.getLogger(__name__)
-logging.basicConfig( format='%(asctime)s %(levelname)s %(name)s %(message)s', level=logging.INFO)
 
 class DocumentField:
 

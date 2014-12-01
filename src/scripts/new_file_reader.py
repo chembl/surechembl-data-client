@@ -1,13 +1,15 @@
-import sys
+
 import os
-import ftplib
 import re
-from datetime import date
+import logging
+
+logger = logging.getLogger(__name__)
 
 class NewFileReader:
 
-    NEW_FILES_LOC  = "data/external/frontfile/{0}/{1}/{2:02d}"
-    NEW_FILES_NAME = "newfiles.txt"
+    FRONT_FILE_LOC  = "data/external/frontfile"
+    NEW_FILES_LOC   = FRONT_FILE_LOC + "/{0}/{1}/{2:02d}"
+    NEW_FILES_NAME  = "newfiles.txt"
 
     SUFFIX_CHEM    = ".chemicals.tsv.gz"
     SUFFIX_BIBLIO  = ".biblio.json.gz"
@@ -43,19 +45,20 @@ class NewFileReader:
         def handle_binary(more_data):
             data.append(more_data)
 
+        # TODO gracefully handle missing file
         self.ftp.retrbinary("RETR " + self.NEW_FILES_NAME, handle_binary)
 
         content = "".join(data)
         file_list = content.split('\n')
 
         # TODO add logging framework
-        print "Discovered {} new files for {}".format(len(file_list), from_date)
+        logger.info( "Discovered {} new files for {}".format(len(file_list), from_date) )
 
         return file_list
 
     def select_downloads(self, file_list):
 
-        print "Selecting files to download"
+        logger.info( "Selecting files to download" )
 
         bibl_files = set()
         chem_files = set()
@@ -72,7 +75,7 @@ class NewFileReader:
             bibl_files.add( self.supp_regex.sub(self.SUFFIX_BIBLIO, sc) )
 
         download_list = sorted(bibl_files) + sorted(chem_files)
-        print "Selected {} for download".format( len(download_list) )
+        logger.info( "Selected {} for download".format( len(download_list) ) )
 
         return download_list
 
@@ -85,13 +88,13 @@ class NewFileReader:
         '''
         # TODO add python docs throughout
 
-        print "Creating target directory for download: [{}]".format(target_dir)
+        logger.info( "Creating target directory for download: [{}]".format(target_dir) )
         if not os.path.exists(target_dir):
             os.makedirs(target_dir, mode=0755)
 
         for file_path in file_list:
 
-            print "Downloading [{}]".format(file_path)
+            logger.info( "Downloading [{}]".format(file_path) )
 
             matched = re.match(self.FILE_PATH_REGEX, file_path)
             path = matched.group(1)
@@ -99,8 +102,9 @@ class NewFileReader:
 
             fhandle = open("{0}/{1}".format(target_dir,file), 'wb')
 
-            self.ftp.cwd( '/' )
-            self.ftp.cwd( path )
+            logger.info("Changing to remote directory [{}]".format(path))
+
+            self.ftp.cwd( '/' + self.FRONT_FILE_LOC + path)
             self.ftp.retrbinary("RETR " + file, fhandle.write)
             # TODO resilient download / error checking / retry
 

@@ -82,9 +82,9 @@ class FTPTests(unittest.TestCase):
 
     def test_get_files(self):
         self.reader.read_files(
-            ['path/one/bib.dat','path/two/chem.dat'], '/tmp/schembl_ftp_test')
+            ['/path/one/bib.dat','/path/two/chem.dat'], '/tmp/schembl_ftp_test')
 
-        calls = [call('/'),call('path/one/'),call('/'),call('path/two/')]
+        calls = [call('/data/external/frontfile/path/one/'),call('/data/external/frontfile/path/two/')]
         self.ftp.cwd.assert_has_calls(calls, any_order=False)
 
         calls = [call("RETR bib.dat", ANY),call("RETR chem.dat", ANY)]
