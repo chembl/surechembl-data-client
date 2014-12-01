@@ -30,10 +30,8 @@ class DocumentClass:
         'ipcr' : IPCR,
         'cpc'  : CPC }
 
-    default_relevant_set = set(
-        ["A01", "A23", "A24", "A61", "A62B",
-         "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13", "C14",
-         "G01N"])
+    default_relevant_set = {"A01", "A23", "A24", "A61", "A62B", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12",
+                            "C13", "C14", "G01N"}
 
 
 
@@ -43,6 +41,8 @@ class DataLoader:
                        'Chemical Corpus Count','Med Chem Alert','Is Relevant','LogP','Donor Count','Acceptor Count',
                        'Ring Count','Rotatable Bond Count','Title Count','Abstract Count','Claims Count',
                        'Description Count','Image Count','Attachment Count']
+
+    CHEM_RECORD_COLS = len(CHEM_HEADER_ROW)
 
     def __init__(self, db, relevant_classes=DocumentClass.default_relevant_set, allow_doc_dups=True):
 
@@ -250,12 +250,15 @@ class DataLoader:
 
         for i, row in enumerate(rows):
 
+            if len(row) != self.CHEM_RECORD_COLS:
+                raise RuntimeError("Incorrect number of columns detected in chemical data file")
+
             doc_id  = self.doc_id_map[ row[0] ]
             chem_id = int(row[1])
 
             if chem_id not in self.existing_chemicals:
 
-                # TODO handle missing columns
+                # TODO handle incorrect column types
                 record = {
                     'id': chem_id,
                     'mol_weight': float(row[6]),

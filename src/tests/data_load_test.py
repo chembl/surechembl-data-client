@@ -107,14 +107,9 @@ class DataLoaderTests(unittest.TestCase):
         self.failUnlessEqual( self.test_classifications, self.loader.relevant_classifications() )
 
     def test_malformed_files(self):
-        for file in ['data/chem_bad_header.tsv', 'data/chem_no_header.tsv']:
-            try:
-                self.load([file])
-                self.fail("A runtime error should have been thrown")
-            except RuntimeError as e:
-                self.failUnlessEqual("Malformed or missing header detected in chemical data file", e.message)
-                pass
-
+        self.expect_runtime_error('data/chem_bad_header.tsv', "Malformed or missing header detected in chemical data file")
+        self.expect_runtime_error('data/chem_no_header.tsv', "Malformed or missing header detected in chemical data file")
+        self.expect_runtime_error('data/chem_wrong_columns.tsv', "Incorrect number of columns detected in chemical data file")
 
     ###### Chem loading tests ######
 
@@ -252,6 +247,15 @@ class DataLoaderTests(unittest.TestCase):
 
         for i,row in enumerate(rows):
             self.verify_class(row, (doc, classes[i], system) )
+
+
+    def expect_runtime_error(self, file, expected_msg):
+        try:
+            self.load([file])
+            self.fail("A runtime error should have been thrown")
+        except RuntimeError as e:
+            self.failUnlessEqual(expected_msg, e.message)
+            pass
 
 def main():
     unittest.main()
