@@ -3,12 +3,13 @@
 
 import os
 import logging
-import ftplib
 from datetime import date
 from datetime import datetime
 import argparse
-import cx_Oracle
+import ftplib
+from subprocess import call
 from sqlalchemy import create_engine
+import cx_Oracle
 from scripts.new_file_reader import NewFileReader
 from scripts.data_loader import DataLoader
 
@@ -38,28 +39,32 @@ def main():
     else:
         extract_date = datetime.strptime(args.date, '%Y%m%d')
 
-    # Download today's data files for processing
-    ftp = ftplib.FTP('ftp-private.ebi.ac.uk', args.ftp_user, args.ftp_pass)
-    reader        = NewFileReader(ftp)
-    file_list     = reader.new_files( extract_date )
-    download_list = reader.select_downloads( file_list )
-    reader.read_files( download_list, args.working_dir )
+    # TODO download overwrites / cleans up any files
 
-    print "Download complete"
+    # # Download today's data files for processing
+    # ftp = ftplib.FTP('ftp-private.ebi.ac.uk', args.ftp_user, args.ftp_pass)
+    # reader        = NewFileReader(ftp)
+    # file_list     = reader.new_files( extract_date )
+    # download_list = reader.select_downloads( file_list )
+    # reader.read_files( download_list, args.working_dir )
+    #
+    # print "Download complete"
 
 
 
     # TODO error handling - no files for today?
 
-    # # Connect to the DB, and load the data
-    # db = get_db_engine(args.db_user, args.db_pass)
-    #
-    # loader = DataLoader(db)
-    # loader.load_biblio('/Users/jsiddle/workspaces/surechembl/surechembl-data-client/working/python_exercises/2013-600001-637469.biblio.json')
-    # loader.load_chems('/Users/jsiddle/workspaces/surechembl/surechembl-data-client/working/python_exercises/2013-600001-637469.chemicals.tsv')
-    #
+    call("gunzip {}/*.gz".format(args.working_dir), shell=True)
+    downloads = os.listdir(args.working_dir)
 
+    db = get_db_engine(args.db_user, args.db_pass)
+    loader = DataLoader(db)
 
+    for bib_file in filter( lambda f: f.endswith("biblio.json"), downloads):
+        loader.load_biblio(args.working_dir + '/' + bib_file)
+
+    for chem_file in filter( lambda f: f.endswith("chemicals.tsv"), downloads):
+        loader.load_chems(args.working_dir + '/' + chem_file)
 
 
 def get_db_engine(user,password):
@@ -80,7 +85,6 @@ def get_db_engine(user,password):
         echo=True)
 
     return db
-
 
 
 if __name__ == '__main__':
