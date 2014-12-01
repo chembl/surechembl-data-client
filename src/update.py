@@ -51,7 +51,6 @@ def main():
     # print "Download complete"
 
 
-
     # TODO error handling - no files for today?
 
     call("gunzip {}/*.gz".format(args.working_dir), shell=True)
@@ -60,11 +59,15 @@ def main():
     db = get_db_engine(args.db_user, args.db_pass)
     loader = DataLoader(db)
 
-    for bib_file in filter( lambda f: f.endswith("biblio.json"), downloads):
-        loader.load_biblio(args.working_dir + '/' + bib_file)
+    loader.load_biblio(args.working_dir + '/2014-11-20.biblio.json')
+    loader.load_chems(args.working_dir + '/2014-11-20.chemicals.tsv')
 
-    for chem_file in filter( lambda f: f.endswith("chemicals.tsv"), downloads):
-        loader.load_chems(args.working_dir + '/' + chem_file)
+    # for bib_file in filter( lambda f: f.endswith("biblio.json"), downloads):
+    #     loader.load_biblio(args.working_dir + '/' + bib_file)
+    #
+    # for chem_file in filter( lambda f: f.endswith("chemicals.tsv"), downloads):
+    #     loader.load_chems(args.working_dir + '/' + chem_file)
+
 
 
 def get_db_engine(user,password):
@@ -82,7 +85,7 @@ def get_db_engine(user,password):
         "oracle+cx_oracle://{0}:{1}@{2}:{3}/{4}".format(
             user,password,host,port,db_name
         ),
-        echo=True)
+        echo=False)
 
     return db
 

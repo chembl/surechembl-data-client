@@ -10,9 +10,10 @@ class DataLoaderTests(unittest.TestCase):
 
     def setUp(self):
         self.db = create_engine('sqlite:///:memory:', echo=False)
+        self.test_classifications = ("TEST_CLASS1","TEST_CLASS2","TEST_CLASS3","TEST_CLASS4", "TEST_CLASS7")
 
         # Create the object under test, use it to create the schema
-        self.loader = DataLoader(self.db)
+        self.loader = DataLoader( self.db, self.test_classifications )
         self.metadata = self.loader.db_metadata()
         self.metadata.create_all(self.db)
 
@@ -24,15 +25,15 @@ class DataLoaderTests(unittest.TestCase):
     def test_write_document_record(self):
         result = self.load_n_query('data/biblio_single_row.json')
         row = result.fetchone()
-        self.verify_doc(row, (1,'WO-2013127697-A1',date(2013,9,6),1,47747634))
+        self.verify_doc(row, (1,'WO-2013127697-A1',date(2013,9,6),0,47747634))
 
     def test_write_docs_many(self):
         result = self.load_n_query('data/biblio_typical.json')
         rows = result.fetchall()
         self.failUnlessEqual( 25, len(rows) )
-        self.verify_doc( rows[0], (1,'WO-2013127697-A1',date(2013,9,6),1,47747634) )
-        self.verify_doc( rows[1], (2,'WO-2013127698-A1',date(2013,9,6),1,47748611) )
-        self.verify_doc( rows[24], (25,'WO-2013189394-A2',date(2013,12,27),1,49769540) )
+        self.verify_doc( rows[0], (1,'WO-2013127697-A1',date(2013,9,6),0,47747634) )
+        self.verify_doc( rows[1], (2,'WO-2013127698-A1',date(2013,9,6),0,47748611) )
+        self.verify_doc( rows[24], (25,'WO-2013189394-A2',date(2013,12,27),0,49769540) )
 
     def test_sequence_definitions(self):
         mdata = self.loader.db_metadata()
@@ -77,6 +78,30 @@ class DataLoaderTests(unittest.TestCase):
         self.verify_classes( 25, DocumentClass.IPCR, ["H04L 29/08"])
         self.verify_classes( 25, DocumentClass.CPC,  ["H04L 29/08"])
 
+    def test_classes_define_life_sci_flag(self):
+        # This test checks that the classifications determined the life_sci_relevant flag, in these scenarios:
+        # - present in ipc/ipcr/ecla/cpc fields as the only value
+        # - mixed in with other codes (before / after)
+        # - mixed in with similar codes (before / after)
+        result = self.load_n_query('data/biblio_typical.json')
+        rows = result.fetchall()
+
+        relevant = set(['WO-2013127700-A1','WO-2013127701-A2','WO-2013127702-A1','WO-2013127703-A1','WO-2013127704-A1',
+                        'WO-2013127705-A1','WO-2013127707-A1','WO-2013127708-A1','WO-2013127712-A1','WO-2013127714-A1'])
+
+        for row in rows:
+            expect_relevant = row['scpn'] in relevant
+            print expect_relevant
+            print row['scpn']
+            print row['life_sci_relevant']
+            self.failUnlessEqual(int(expect_relevant), row['life_sci_relevant'])
+
+
+    def test_classifications_set(self):
+        default_classes = set(["A01", "A23", "A24", "A61", "A62B","C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13", "C14","G01N"])
+        test_loader = DataLoader(self.db)
+        self.failUnlessEqual( default_classes,           test_loader.relevant_classifications() )
+        self.failUnlessEqual( self.test_classifications, self.loader.relevant_classifications() )
 
     ###### Chem loading tests ######
 

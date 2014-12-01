@@ -2,6 +2,7 @@ import logging
 import codecs
 import json
 import csv
+import re
 from datetime import datetime
 from sqlalchemy import MetaData, Table, ForeignKey, Column, Sequence, Integer, Float, String, SmallInteger, Date, Text, select
 
@@ -29,16 +30,25 @@ class DocumentClass:
         'ipcr' : IPCR,
         'cpc'  : CPC }
 
+    default_relevant_set = set(
+        ["A01", "A23", "A24", "A61", "A62B",
+         "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13", "C14",
+         "G01N"])
+
 
 
 
 class DataLoader:
 
-    def __init__(self, db):
+    def __init__(self, db, relevant_classes=DocumentClass.default_relevant_set):
         self.db = db
+        self.relevant_classes = relevant_classes
+        self.relevant_regex = re.compile( '|'.join(relevant_classes) )
+
         self.metadata = MetaData()
         self.doc_id_map = dict()
         self.existing_chemicals = set()
+
 
         # TODO field sizes asserted - all tables / fields
         # TODO FK and Nullable tested - all tables
@@ -86,6 +96,8 @@ class DataLoader:
     def db_metadata(self):
         return self.metadata
 
+    def relevant_classifications(self):
+        return self.relevant_classes
 
     def load_biblio(self, file_name):
 
@@ -113,11 +125,17 @@ class DataLoader:
                 pubnumber = bib_scalar(bib, 'pubnumber')
                 pubdate = datetime.strptime( bib_scalar( bib,'pubdate'), '%Y%m%d')
 
-                record = dict(
-                    scpn              = pubnumber,
-                    published         = pubdate,
-                    family_id         = bib_scalar(bib, 'family_id'),
-                    life_sci_relevant = 1 )
+                life_sci_relevant = 0
+                for system_key in ['ipc','ecla','ipcr','cpc']:
+                    for classif in bib[system_key]:
+                        if (self.relevant_regex.match(classif)):
+                            life_sci_relevant = 1
+
+                record = {
+                    'scpn'              : pubnumber,
+                    'published'         : pubdate,
+                    'family_id'         : bib_scalar(bib, 'family_id'),
+                    'life_sci_relevant' : int(life_sci_relevant) }
 
                 # TODO duplicate SCPN
                 # TODO life science relevant function
@@ -135,10 +153,10 @@ class DataLoader:
                 for i, title_lang in enumerate( bib['title_lang'] ):
                     title = titles[i]
 
-                    record = dict(
-                        schembl_doc_id = doc_id,
-                        lang           = title_lang,
-                        text           = title)
+                    record = {
+                        'schembl_doc_id' : doc_id,
+                        'lang'           : title_lang,
+                        'text'           : title}
 
                     result = conn.execute(title_ins, record)
 
