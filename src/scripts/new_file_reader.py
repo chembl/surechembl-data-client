@@ -51,7 +51,6 @@ class NewFileReader:
         content = "".join(data)
         file_list = content.split('\n')
 
-        # TODO add logging framework
         logger.info( "Discovered {} new files for {}".format(len(file_list), from_date) )
 
         return file_list
@@ -94,8 +93,6 @@ class NewFileReader:
 
         for file_path in file_list:
 
-            logger.info( "Downloading [{}]".format(file_path) )
-
             matched = re.match(self.FILE_PATH_REGEX, file_path)
             path = matched.group(1)
             file = matched.group(2)
@@ -103,6 +100,7 @@ class NewFileReader:
             fhandle = open("{0}/{1}".format(target_dir,file), 'wb')
 
             logger.info("Changing to remote directory [{}]".format(path))
+            logger.info("Downloading [{}]".format(file))
 
             self.ftp.cwd( '/' + self.FRONT_FILE_LOC + path)
             self.ftp.retrbinary("RETR " + file, fhandle.write)
