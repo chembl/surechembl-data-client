@@ -99,10 +99,12 @@ class NewFileReader:
 
             fhandle = open("{0}/{1}".format(target_dir,file), 'wb')
 
-            logger.info("Changing to remote directory [{}]".format(path))
+            target_path = '/' + self.FRONT_FILE_LOC + path
+
+            logger.info("Changing to remote directory [{}]".format(target_path))
             logger.info("Downloading [{}]".format(file))
 
-            self.ftp.cwd( '/' + self.FRONT_FILE_LOC + path)
+            self.ftp.cwd( target_path )
             self.ftp.retrbinary("RETR " + file, fhandle.write)
             # TODO resilient download / error checking / retry
 
