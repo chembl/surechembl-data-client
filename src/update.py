@@ -1,15 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
 
-import os
 import logging
+import argparse
 from datetime import date
 from datetime import datetime
-import argparse
+import os
 import ftplib
 from subprocess import call
 from sqlalchemy import create_engine
-import cx_Oracle
 from scripts.new_file_reader import NewFileReader
 from scripts.data_loader import DataLoader
 
@@ -18,8 +17,9 @@ logger = logging.getLogger(__name__)
 logging.basicConfig( format='%(asctime)s %(levelname)s %(name)s %(message)s', level=logging.INFO)
 
 
-
 def main():
+
+    logger.info("Starting SureChEMBL update process")
 
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Update the SureChEMBL database with today''s data export')
