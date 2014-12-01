@@ -37,13 +37,18 @@ class DocumentClass:
 
 
 
-
 class DataLoader:
 
-    def __init__(self, db, relevant_classes=DocumentClass.default_relevant_set):
+    CHEM_HEADER_ROW = ['SCPN','SureChEMBL ID','SMILES','Standard InChi','Standard InChiKey','Names','Mol Weight',
+                       'Chemical Corpus Count','Med Chem Alert','Is Relevant','LogP','Donor Count','Acceptor Count',
+                       'Ring Count','Rotatable Bond Count','Title Count','Abstract Count','Claims Count',
+                       'Description Count','Image Count','Attachment Count']
+
+    def __init__(self, db, relevant_classes=DocumentClass.default_relevant_set, allow_doc_dups=True):
         self.db = db
         self.relevant_classes = relevant_classes
         self.relevant_regex = re.compile( '|'.join(relevant_classes) )
+        self.allow_document_dups = allow_doc_dups
 
         self.metadata = MetaData()
         self.doc_id_map = dict()
@@ -118,12 +123,22 @@ class DataLoader:
             # TODO Multiple inserts?
             for bib in chunk:
 
-                transaction = conn.begin()
-
                 # TODO missing / empty values rejected (or explicitly allowed)
 
                 pubnumber = bib_scalar(bib, 'pubnumber')
                 pubdate = datetime.strptime( bib_scalar( bib,'pubdate'), '%Y%m%d')
+
+                if self.allow_document_dups:
+
+                    if pubnumber in self.doc_id_map:
+                        continue
+
+                    sel = select([self.docs.c.id]).where(self.docs.c.scpn == pubnumber)
+                    result = conn.execute(sel)
+                    row = result.fetchone()
+                    if row:
+                        self.doc_id_map[pubnumber] = row[0]
+                        continue
 
                 life_sci_relevant = 0
                 for system_key in ['ipc','ecla','ipcr','cpc']:
@@ -138,6 +153,8 @@ class DataLoader:
                     'life_sci_relevant' : int(life_sci_relevant) }
 
                 # TODO duplicate SCPN
+
+                transaction = conn.begin()
 
                 result = conn.execute(doc_ins, record)
 
@@ -195,7 +212,8 @@ class DataLoader:
         for i, row in enumerate(tsvin):
 
             if (i == 0):
-                # TODO verify header?
+                if row != self.CHEM_HEADER_ROW:
+                    raise RuntimeError("Malformed or missing header detected in chemical data file")
                 continue
 
             if (i % chunksize == 0 and i > 0):

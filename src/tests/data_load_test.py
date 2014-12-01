@@ -35,6 +35,13 @@ class DataLoaderTests(unittest.TestCase):
         self.verify_doc( rows[1], (2,'WO-2013127698-A1',date(2013,9,6),0,47748611) )
         self.verify_doc( rows[24], (25,'WO-2013189394-A2',date(2013,12,27),0,49769540) )
 
+    def test_write_docs_duplicates_handled(self):
+        self.load(['data/biblio_single_row.json'])
+        self.load(['data/biblio_typical.json'])
+        rows = self.query(['schembl_document']).fetchall()
+        self.failUnlessEqual( 25, len( rows ) )
+        self.verify_doc( rows[0], (1,'WO-2013127697-A1',date(2013,9,6),0,47747634) )
+
     def test_sequence_definitions(self):
         mdata = self.loader.db_metadata()
         self.failUnlessEqual( 'schembl_document_id', mdata.tables['schembl_document'].c.id.default.name )
@@ -91,17 +98,23 @@ class DataLoaderTests(unittest.TestCase):
 
         for row in rows:
             expect_relevant = row['scpn'] in relevant
-            print expect_relevant
-            print row['scpn']
-            print row['life_sci_relevant']
             self.failUnlessEqual(int(expect_relevant), row['life_sci_relevant'])
-
 
     def test_classifications_set(self):
         default_classes = set(["A01", "A23", "A24", "A61", "A62B","C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13", "C14","G01N"])
         test_loader = DataLoader(self.db)
         self.failUnlessEqual( default_classes,           test_loader.relevant_classifications() )
         self.failUnlessEqual( self.test_classifications, self.loader.relevant_classifications() )
+
+    def test_malformed_files(self):
+        for file in ['data/chem_bad_header.tsv', 'data/chem_no_header.tsv']:
+            try:
+                self.load([file])
+                self.fail("A runtime error should have been thrown")
+            except RuntimeError as e:
+                self.failUnlessEqual("Malformed or missing header detected in chemical data file", e.message)
+                pass
+
 
     ###### Chem loading tests ######
 
