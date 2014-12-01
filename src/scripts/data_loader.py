@@ -45,6 +45,10 @@ class DataLoader:
                        'Description Count','Image Count','Attachment Count']
 
     def __init__(self, db, relevant_classes=DocumentClass.default_relevant_set, allow_doc_dups=True):
+
+        logger.info( "Life-sci relevant classes: {}".format(relevant_classes) )
+        logger.info( "Duplicate docs allowed?: {}".format(allow_doc_dups) )
+
         self.db = db
         self.relevant_classes = relevant_classes
         self.relevant_regex = re.compile( '|'.join(relevant_classes) )
@@ -106,7 +110,7 @@ class DataLoader:
 
     def load_biblio(self, file_name):
 
-        logger.info( "Loading biblio from [{}]".format(file_name) )
+        logger.info( "Loading biblio data from [{}]".format(file_name) )
 
         input_file = codecs.open(file_name, 'r', 'utf-8')
         biblio = json.load(input_file)
@@ -115,8 +119,6 @@ class DataLoader:
         doc_ins = self.docs.insert()
         title_ins = self.titles.insert()
         class_ins = self.classes.insert()
-
-        # TODO retrieve known document IDs (configurable)
 
         for chunk in chunks(biblio, 1000):
 
@@ -151,8 +153,6 @@ class DataLoader:
                     'published'         : pubdate,
                     'family_id'         : bib_scalar(bib, 'family_id'),
                     'life_sci_relevant' : int(life_sci_relevant) }
-
-                # TODO duplicate SCPN
 
                 transaction = conn.begin()
 
@@ -217,13 +217,13 @@ class DataLoader:
                 continue
 
             if (i % chunksize == 0 and i > 0):
-                logger.info( "Processing chunk to index {}".format(i) )
+                logger.info( "Processing chem-mapping data to index {}".format(i) )
                 self.process_chem_rows(conn, chem_ins, chem_struc_ins, chem_map_ins, chunk)
                 del chunk[:]
 
             chunk.append(row)
 
-        logger.info( "Processing chunk to index {} (final)".format(i) )
+        logger.info( "Processing chem-mapping data to index {} (final)".format(i) )
         self.process_chem_rows(conn, chem_ins, chem_struc_ins, chem_map_ins, chunk)
 
 
