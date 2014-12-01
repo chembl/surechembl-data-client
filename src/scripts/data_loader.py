@@ -138,7 +138,6 @@ class DataLoader:
                     'life_sci_relevant' : int(life_sci_relevant) }
 
                 # TODO duplicate SCPN
-                # TODO life science relevant function
 
                 result = conn.execute(doc_ins, record)
 
