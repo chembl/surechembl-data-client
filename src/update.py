@@ -39,19 +39,26 @@ def main():
     else:
         extract_date = datetime.strptime(args.date, '%Y%m%d')
 
-    # TODO download overwrites / cleans up any files
+    # Clean up any files in the download dir
+    call("rm {}/biblio.json".format(args.working_dir), shell=True)
+    call("rm {}/biblio.json.gz".format(args.working_dir), shell=True)
+    call("rm {}/chemicals.tsv".format(args.working_dir), shell=True)
+    call("rm {}/chemicals.tsv.gz".format(args.working_dir), shell=True)
 
-    # # Download today's data files for processing
-    # ftp = ftplib.FTP('ftp-private.ebi.ac.uk', args.ftp_user, args.ftp_pass)
-    # reader        = NewFileReader(ftp)
-    # file_list     = reader.new_files( extract_date )
-    # download_list = reader.select_downloads( file_list )
-    # reader.read_files( download_list, args.working_dir )
-    #
-    # print "Download complete"
+
+    # Download today's data files for processing
+    ftp = ftplib.FTP('ftp-private.ebi.ac.uk', args.ftp_user, args.ftp_pass)
+    reader        = NewFileReader(ftp)
+    file_list     = reader.new_files( extract_date )
+    download_list = reader.select_downloads( file_list )
+    reader.read_files( download_list, args.working_dir )
+
+    logger.info("Download complete")
 
 
     # TODO error handling - no files for today?
+
+    logger.info("Unzipping contents of working directory")
 
     call("gunzip {}/*.gz".format(args.working_dir), shell=True)
     downloads = os.listdir(args.working_dir)
@@ -59,14 +66,11 @@ def main():
     db = get_db_engine(args.db_user, args.db_pass)
     loader = DataLoader(db)
 
-    loader.load_biblio(args.working_dir + '/2014-11-20.biblio.json')
-    loader.load_chems(args.working_dir + '/2014-11-20.chemicals.tsv')
+    for bib_file in filter( lambda f: f.endswith("biblio.json"), downloads):
+        loader.load_biblio(args.working_dir + '/' + bib_file)
 
-    # for bib_file in filter( lambda f: f.endswith("biblio.json"), downloads):
-    #     loader.load_biblio(args.working_dir + '/' + bib_file)
-    #
-    # for chem_file in filter( lambda f: f.endswith("chemicals.tsv"), downloads):
-    #     loader.load_chems(args.working_dir + '/' + chem_file)
+    for chem_file in filter( lambda f: f.endswith("chemicals.tsv"), downloads):
+        loader.load_chems(args.working_dir + '/' + chem_file)
 
 
 
