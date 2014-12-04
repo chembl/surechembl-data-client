@@ -47,7 +47,7 @@ class DataLoader:
     def __init__(self, db, relevant_classes=DocumentClass.default_relevant_set, allow_doc_dups=True):
 
         logger.info( "Life-sci relevant classes: {}".format(relevant_classes) )
-        logger.info( "Duplicate docs allowed?: {}".format(allow_doc_dups) )
+        logger.info( "Duplicate docs allowed? {}".format(allow_doc_dups) )
 
         self.db = db
         self.relevant_classes = relevant_classes
@@ -108,21 +108,26 @@ class DataLoader:
     def relevant_classifications(self):
         return self.relevant_classes
 
-    def load_biblio(self, file_name):
+    def load_biblio(self, file_name, chunksize=1000):
 
         logger.info( "Loading biblio data from [{}]".format(file_name) )
 
         input_file = codecs.open(file_name, 'r', 'utf-8')
         biblio = json.load(input_file)
 
-        conn = self.db.connect()
+        sql_alc_conn = self.db.connect()
+        db_api_conn = sql_alc_conn.connection
+
         doc_ins = self.docs.insert()
-        title_ins = self.titles.insert()
-        class_ins = self.classes.insert()
+        title_ins = DBInserter(db_api_conn, 'insert into schembl_document_title (schembl_doc_id, lang, text) values (:1, :2, :3)')
+        classes_ins = DBInserter(db_api_conn, 'insert into schembl_document_class (schembl_doc_id, class, system) values (:1, :2, :3)')
 
-        for chunk in chunks(biblio, 1000):
 
-            # TODO Multiple inserts?
+        for chunk in chunks(biblio, chunksize):
+
+            new_titles = []
+            new_classes = []
+
             for bib in chunk:
 
                 # TODO missing / empty values rejected (or explicitly allowed)
@@ -136,7 +141,7 @@ class DataLoader:
                         continue
 
                     sel = select([self.docs.c.id]).where(self.docs.c.scpn == pubnumber)
-                    result = conn.execute(sel)
+                    result = sql_alc_conn.execute(sel)
                     row = result.fetchone()
                     if row:
                         self.doc_id_map[pubnumber] = row[0]
@@ -154,44 +159,36 @@ class DataLoader:
                     'family_id'         : bib_scalar(bib, 'family_id'),
                     'life_sci_relevant' : int(life_sci_relevant) }
 
-                transaction = conn.begin()
-
-                result = conn.execute(doc_ins, record)
+                transaction = sql_alc_conn.begin()
+                result = sql_alc_conn.execute(doc_ins, record)
 
                 doc_id = result.inserted_primary_key[0] # Single PK
 
                 self.doc_id_map[pubnumber] = doc_id
-
+                transaction.commit()
 
                 # TODO missing titles handled
                 # TODO missing titles field handled
                 titles = bib['title']
                 for i, title_lang in enumerate( bib['title_lang'] ):
-                    title = titles[i]
-
-                    record = {
-                        'schembl_doc_id' : doc_id,
-                        'lang'           : title_lang,
-                        'text'           : title}
-
-                    result = conn.execute(title_ins, record)
+                    new_titles.append( (doc_id, title_lang, titles[i] ) )
 
                 # TODO missing classification fields handled
                 for system_key in ['ipc','ecla','ipcr','cpc']:
-
                     for classif in bib[system_key]:
+                        new_classes.append( (doc_id, classif, DocumentClass.bib_dict[system_key] ) )
 
-                        record = {
-                            'schembl_doc_id': doc_id,
-                            'class'         : classif,
-                            'system'        : DocumentClass.bib_dict[system_key] }
+            # Bulk inserts
+            title_ins.insert(new_titles)
+            classes_ins.insert(new_classes)
 
-                        result = conn.execute(class_ins, record)
+        # Clean up resources
+        title_ins.close()
+        classes_ins.close()
 
-                transaction.commit()
-
-        conn.close()
+        sql_alc_conn.close()
         input_file.close()
+
 
     def load_chems(self, file_name, chunksize=1000):
 
@@ -202,10 +199,14 @@ class DataLoader:
         input_file = codecs.open(file_name, 'rb', 'utf-8')
         tsvin = csv.reader(input_file, delimiter='\t')
 
-        conn = self.db.connect()
-        chem_ins = self.chemicals.insert()
-        chem_struc_ins = self.chem_structures.insert()
-        chem_map_ins = self.chem_mapping.insert()
+        sql_alc_conn = self.db.connect()
+        db_api_conn = sql_alc_conn.connection
+
+        chem_ins = DBInserter(db_api_conn, 'insert into schembl_chemical (id, mol_weight, logp, med_chem_alert, is_relevant, donor_count, acceptor_count, ring_count, rot_bond_count, corpus_count) values (:1, :2, :3, :4, :5, :6, :7, :8, :9, :10)')
+        chem_struc_ins = DBInserter(db_api_conn, 'insert into schembl_chemical_structure (schembl_chem_id, smiles, std_inchi, std_inchikey) values (:1, :2, :3, :4)')
+        chem_map_ins = DBInserter(db_api_conn, 'insert into schembl_document_chemistry (schembl_doc_id, schembl_chem_id, field, frequency) values (:1, :2, :3, :4)')
+
+        # PREPARE - oracle
 
         chunk = []
 
@@ -218,17 +219,28 @@ class DataLoader:
 
             if (i % chunksize == 0 and i > 0):
                 logger.info( "Processing chem-mapping data to index {}".format(i) )
-                self.process_chem_rows(conn, chem_ins, chem_struc_ins, chem_map_ins, chunk)
+                self.process_chem_rows(sql_alc_conn, chem_ins, chem_struc_ins, chem_map_ins, chunk)
                 del chunk[:]
 
             chunk.append(row)
 
         logger.info( "Processing chem-mapping data to index {} (final)".format(i) )
-        self.process_chem_rows(conn, chem_ins, chem_struc_ins, chem_map_ins, chunk)
+        self.process_chem_rows(sql_alc_conn, chem_ins, chem_struc_ins, chem_map_ins, chunk)
+
+        # Clean up resources
+        chem_ins.close()
+        chem_struc_ins.close()
+        chem_map_ins.close()
+
+        sql_alc_conn.close()
+        input_file.close()
 
 
-    def process_chem_rows(self, conn, chem_ins, chem_struc_ins, chem_map_ins, rows):
+    def process_chem_rows(self, sql_alc_conn, chem_ins, chem_struc_ins, chem_map_ins, rows):
 
+        logger.info( "Building set of unknown chemical IDs ({} known)".format(len(self.existing_chemicals)) )
+
+        # Identify chemicals from the batch that we haven't seen before
         chem_ids = set()
         for row in rows:
             chem_id = int(row[1])
@@ -236,17 +248,27 @@ class DataLoader:
                 continue
             chem_ids.add( chem_id )
 
+        # Search the DB to see if those chemicals are known
+        logger.info( "Searching DB for {} unknown chemical IDs".format(len(chem_ids)) )
         sel = select(
                 [self.chemicals.c.id])\
               .where(
                 (self.chemicals.c.id.in_(chem_ids) ))
 
-        result = conn.execute(sel)
+        # Add known chemicals to the set of existing chemicals
+        result = sql_alc_conn.execute(sel)
         found_chems = result.fetchall()
         for found_chem in found_chems:
             self.existing_chemicals.add( found_chem[0] )
 
-        transaction = conn.begin()
+        logger.info( "Known chemical IDs now at: {}".format(len(self.existing_chemicals)) )
+
+        logger.info( "Processing chemical mappings / building insert list" )
+
+        new_chems = []
+        new_chem_structs = []
+        new_mappings = []
+
 
         for i, row in enumerate(rows):
 
@@ -258,43 +280,33 @@ class DataLoader:
 
             if chem_id not in self.existing_chemicals:
 
-                # TODO handle incorrect column types
-                record = {
-                    'id': chem_id,
-                    'mol_weight': float(row[6]),
-                    'logp': float(row[10]),
-                    'med_chem_alert': int(row[8]),
-                    'is_relevant': int(row[9]),
-                    'donor_count': int(row[11]),
-                    'acceptor_count': int(row[12]),
-                    'ring_count': int(row[13]),
-                    'rot_bond_count': int(row[14]),
-                    'corpus_count': int(row[7])}
-
-                result = conn.execute(chem_ins, record)
-
-                record = {
-                    'schembl_chem_id': chem_id,
-                    'smiles': row[2],
-                    'std_inchi': row[3],
-                    'std_inchikey': row[4],
-                }
-
-                result = conn.execute(chem_struc_ins, record)
+                # # TODO handle incorrect column types
+                new_chems.append( (chem_id, float(row[6]), float(row[10]), int(row[8]), int(row[9]), int(row[11]), int(row[12]), int(row[13]), int(row[14]), int(row[7])) )
+                new_chem_structs.append( ( chem_id, row[2], row[3], row[4]) )
 
                 # TODO handle rollback of full chemical ID set
                 self.existing_chemicals.add(chem_id)
 
             # Add the document / chemical mappings
-            conn.execute(chem_map_ins, { 'schembl_doc_id': doc_id, 'schembl_chem_id': chem_id, 'field': DocumentField.TITLE,       'frequency': int(row[15]) })
-            conn.execute(chem_map_ins, { 'schembl_doc_id': doc_id, 'schembl_chem_id': chem_id, 'field': DocumentField.ABSTRACT,    'frequency': int(row[16]) })
-            conn.execute(chem_map_ins, { 'schembl_doc_id': doc_id, 'schembl_chem_id': chem_id, 'field': DocumentField.CLAIMS,      'frequency': int(row[17]) })
-            conn.execute(chem_map_ins, { 'schembl_doc_id': doc_id, 'schembl_chem_id': chem_id, 'field': DocumentField.DESCRIPTION, 'frequency': int(row[18]) })
-            conn.execute(chem_map_ins, { 'schembl_doc_id': doc_id, 'schembl_chem_id': chem_id, 'field': DocumentField.IMAGES,      'frequency': int(row[19]) })
-            conn.execute(chem_map_ins, { 'schembl_doc_id': doc_id, 'schembl_chem_id': chem_id, 'field': DocumentField.ATTACHMENTS, 'frequency': int(row[20]) })
+            new_mappings.append( (doc_id, chem_id, DocumentField.TITLE,       int(row[15]) ) )
+            new_mappings.append( (doc_id, chem_id, DocumentField.ABSTRACT,    int(row[16]) ) )
+            new_mappings.append( (doc_id, chem_id, DocumentField.CLAIMS,      int(row[17]) ) )
+            new_mappings.append( (doc_id, chem_id, DocumentField.DESCRIPTION, int(row[18]) ) )
+            new_mappings.append( (doc_id, chem_id, DocumentField.IMAGES,      int(row[19]) ) )
+            new_mappings.append( (doc_id, chem_id, DocumentField.ATTACHMENTS, int(row[20]) ) )
 
+        # Execute 'insert many' here (oracle optimization) - having examined the batch
+        logger.info("Performing {} chemical inserts".format(len(new_chems)) )
+        chem_ins.insert(new_chems)
 
-        transaction.commit()
+        logger.info("Performing {} chemical structure inserts".format(len(new_chem_structs)) )
+        chem_struc_ins.insert( new_chem_structs)
+
+        logger.info("Performing {} mapping inserts".format(len(new_mappings)) )
+        chem_map_ins.insert( new_mappings)
+
+        logger.info("Batch processed")
+
 
 
 
@@ -329,3 +341,20 @@ def bib_scalar(biblio, key):
 # 18 Description field count
 # 19 Images field count
 # 20 Attachments field count
+
+
+class DBInserter:
+
+    def __init__(self, db_api_conn, operation):
+        self.conn = db_api_conn
+        self.cursor = db_api_conn.cursor()
+        self.operation = operation
+
+    def insert(self,data):
+        self.cursor.executemany(self.operation, data)
+        self.conn.commit()
+
+
+    def close(self):
+        self.cursor.close()
+
