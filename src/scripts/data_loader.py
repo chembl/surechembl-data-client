@@ -197,7 +197,7 @@ class DataLoader:
                 life_sci_relevant = 0
                 for system_key in ['ipc','ecla','ipcr','cpc']:
                     for classif in bib[system_key]:
-                        if (self.relevant_regex.match(classif)):
+                        if life_sci_relevant == 0 and self.relevant_regex.match(classif):
                             life_sci_relevant = 1
 
                 # Create a new record for the document
@@ -274,13 +274,13 @@ class DataLoader:
 
             if (i % chunksize == 0 and i > 0):
                 logger.debug( "Processing chem-mapping data to index {}".format(i) )
-                self.process_chem_rows(sql_alc_conn, chem_ins, chem_struc_ins, chem_map_ins, chunk)
+                self._process_chem_rows(sql_alc_conn, chem_ins, chem_struc_ins, chem_map_ins, chunk)
                 del chunk[:]
 
             chunk.append(row)
 
         logger.debug( "Processing chem-mapping data to index {} (final)".format(i) )
-        self.process_chem_rows(sql_alc_conn, chem_ins, chem_struc_ins, chem_map_ins, chunk)
+        self._process_chem_rows(sql_alc_conn, chem_ins, chem_struc_ins, chem_map_ins, chunk)
 
         # Clean up resources
         chem_ins.close()
@@ -293,33 +293,35 @@ class DataLoader:
         logger.info("Chemical import completed" )
 
 
-    def process_chem_rows(self, sql_alc_conn, chem_ins, chem_struc_ins, chem_map_ins, rows):
+    def _process_chem_rows(self, sql_alc_conn, chem_ins, chem_struc_ins, chem_map_ins, rows):
         """Processes a batch of document-chemistry input records"""
 
         logger.debug( "Building set of unknown chemical IDs ({} known)".format(len(self.existing_chemicals)) )
 
         # Identify chemicals from the batch that we haven't seen before
-        chem_ids = set()
+        unknown_chem_ids = set()
         for row in rows:
             chem_id = int(row[1])
             if chem_id in self.existing_chemicals:
                 continue
-            chem_ids.add( chem_id )
+            unknown_chem_ids.add( chem_id )
 
-        # Search the DB to see if those chemicals are known
-        logger.debug( "Searching DB for {} unknown chemical IDs".format(len(chem_ids)) )
-        sel = select(
-                [self.chemicals.c.id])\
-              .where(
-                (self.chemicals.c.id.in_(chem_ids) ))
+        if (len(unknown_chem_ids) > 0):
 
-        # Add known chemicals to the set of existing chemicals
-        result = sql_alc_conn.execute(sel)
-        found_chems = result.fetchall()
-        for found_chem in found_chems:
-            self.existing_chemicals.add( found_chem[0] )
+            # Search the DB to see if those chemicals are known
+            logger.debug( "Searching DB for {} unknown chemical IDs".format(len(unknown_chem_ids)) )
+            sel = select(
+                    [self.chemicals.c.id])\
+                  .where(
+                    (self.chemicals.c.id.in_(unknown_chem_ids) ))
 
-        logger.debug( "Known chemical IDs now at: {}".format(len(self.existing_chemicals)) )
+            # Add known chemicals to the set of existing chemicals
+            result = sql_alc_conn.execute(sel)
+            found_chems = result.fetchall()
+            for found_chem in found_chems:
+                self.existing_chemicals.add( found_chem[0] )
+
+            logger.debug( "Known chemical IDs now at: {}".format(len(self.existing_chemicals)) )
 
         new_chems = []
         new_chem_structs = []
