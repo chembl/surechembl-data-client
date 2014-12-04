@@ -50,9 +50,7 @@ def main():
 
     ftp = ftplib.FTP('ftp-private.ebi.ac.uk', args.ftp_user, args.ftp_pass)
     reader = NewFileReader(ftp)
-
-    file_list = get_target_files(args, reader)
-    download_list = reader.select_downloads( file_list )
+    download_list = get_target_files(args, reader)
     reader.read_files( download_list, args.working_dir )
 
     logger.info("Download complete, unzipping contents of working directory")
@@ -75,11 +73,16 @@ def main():
 
 
 def get_target_files(args, reader):
+    """
+    Identify a set of files to download.
+    :param args: Command line arguments to process
+    :param reader: Used to access the remote file server
+    :return: List of files to download and process.
+    """
 
     # TODO error handling - no files for given date/year
     # TODO error handling - malformed date/year
 
-    # Get a list of files to download
     if args.year != None:
         file_list = reader.year_files( datetime.strptime(args.year, '%Y') )
     elif args.date == "today":
@@ -87,14 +90,20 @@ def get_target_files(args, reader):
     else:
         file_list = reader.new_files( datetime.strptime(args.date, '%Y%m%d') )
 
-    return file_list
+    download_list = reader.select_downloads( file_list )
+
+    return download_list
 
 
 def get_db_engine(args):
+    """
+    Create a database connection.
 
-    # Creates an Oracle connection
-    # Note: If there are stability issues, try adding
-    # "implicit_returning=False" to the parameter list
+    Currently, oracle is the only supported connection type. If there are stability issues, try adding
+    "implicit_returning=False" to the parameter list
+    :param args: Command line arguments, which must include database connection parameters.
+    :return: SQL Alchemy database engine object
+    """
 
     os.environ["NLS_LANG"] = ".AL32UTF8"
 

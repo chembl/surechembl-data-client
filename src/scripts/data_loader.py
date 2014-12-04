@@ -9,6 +9,7 @@ from sqlalchemy import MetaData, Table, ForeignKey, Column, Sequence, Integer, F
 logger = logging.getLogger(__name__)
 
 class DocumentField:
+    """Contains constants for document field identification"""
 
     DESCRIPTION = 1
     CLAIMS      = 2
@@ -18,6 +19,7 @@ class DocumentField:
     ATTACHMENTS = 6
 
 class DocumentClass:
+    """Contains constants and helper methods for document classification"""
 
     IPC  = 1
     ECLA = 2
@@ -36,8 +38,10 @@ class DocumentClass:
 
 
 class DataLoader:
+    """
+    Provides methods for loading SureChEMBL bibliographic and chemical data into a local database.
 
-    ## Expected Chemical CSV structure:
+    Imported Chemical TSV files are expected to have this structure:
     # 0  SCPN
     # 1  SureChEMBL ID
     # 2  SMILES
@@ -59,6 +63,7 @@ class DataLoader:
     # 18 Description field count
     # 19 Images field count
     # 20 Attachments field count
+    """
 
     CHEM_HEADER_ROW = ['SCPN','SureChEMBL ID','SMILES','Standard InChi','Standard InChiKey','Names','Mol Weight',
                        'Chemical Corpus Count','Med Chem Alert','Is Relevant','LogP','Donor Count','Acceptor Count',
@@ -68,6 +73,12 @@ class DataLoader:
     CHEM_RECORD_COLS = len(CHEM_HEADER_ROW)
 
     def __init__(self, db, relevant_classes=DocumentClass.default_relevant_set, allow_doc_dups=True):
+        """
+        Create a new DataLoader.
+        :param db: SQL Alchemy database connection.
+        :param relevant_classes: List of document classification prefix strings to treat as relevant.
+        :param allow_doc_dups: Flag indicating whether duplicate documents should be ignored
+        """
 
         logger.info( "Life-sci relevant classes: {}".format(relevant_classes) )
         logger.info( "Duplicate docs allowed? {}".format(allow_doc_dups) )
@@ -126,12 +137,20 @@ class DataLoader:
                      Column('frequency',        Integer))
 
     def db_metadata(self):
+        """Accessor for the SQL Alchemy database metadata"""
         return self.metadata
 
     def relevant_classifications(self):
+        """Accessor for the list of classifications to treat as relevant"""
         return self.relevant_classes
 
-    def load_biblio(self, file_name, chunksize=10000):
+    def load_biblio(self, file_name, chunksize=1000):
+        """
+        Load bibliographic data into the database. Identifiers for new documents will be retained
+        for reference by the load_chems method.
+        :param file_name: JSON biblio file to import.
+        :param chunksize: Processing chunk size, affecting bulk insertion of some records.
+        """
 
         logger.info( "Loading biblio data from [{}]".format(file_name) )
 
@@ -161,6 +180,7 @@ class DataLoader:
                 pubnumber = bib_scalar(bib, 'pubnumber')
                 pubdate = datetime.strptime( bib_scalar( bib,'pubdate'), '%Y%m%d')
 
+                # Check if this document is known, or exists...
                 if self.allow_document_dups:
 
                     if pubnumber in self.doc_id_map:
@@ -173,12 +193,14 @@ class DataLoader:
                         self.doc_id_map[pubnumber] = row[0]
                         continue
 
+                # Work out of the document is relevant to life science
                 life_sci_relevant = 0
                 for system_key in ['ipc','ecla','ipcr','cpc']:
                     for classif in bib[system_key]:
                         if (self.relevant_regex.match(classif)):
                             life_sci_relevant = 1
 
+                # Create a new record for the document
                 record = {
                     'scpn'              : pubnumber,
                     'published'         : pubdate,
@@ -189,7 +211,6 @@ class DataLoader:
 
                 # TODO correct transaction / rollback handling
                 doc_id = result.inserted_primary_key[0] # Single PK
-
                 self.doc_id_map[pubnumber] = doc_id
 
                 # TODO missing titles handled
@@ -205,7 +226,7 @@ class DataLoader:
 
             transaction.commit()
 
-            # Bulk inserts
+            # Bulk insert titles and classification
             logger.debug("Performing {} title inserts".format(len(new_titles)) )
             title_ins.insert(new_titles)
             logger.debug("Performing {} classification inserts".format(len(new_classes)) )
@@ -214,19 +235,23 @@ class DataLoader:
         # Clean up resources
         title_ins.close()
         classes_ins.close()
-
         sql_alc_conn.close()
         input_file.close()
 
         logger.info("Biblio import completed" )
 
 
-    def load_chems(self, file_name, chunksize=10000):
+    def load_chems(self, file_name, chunksize=1000):
+        """
+        Load document chemistry data into the database. Assumes that document IDs for new document-chemistry
+        have been made available as part of a previous processing step (by load_biblio)
+        :param file_name: The SureChEMBL doc-chemistry data file to load, in TSV format
+        :param chunksize: Chunk size; affected processing of input records along with bulk insertion.
+        """
 
         logger.info( "Loading chemicals from [{}]".format(file_name) )
 
         csv.field_size_limit(10000000)
-
         input_file = codecs.open(file_name, 'rb', 'utf-8')
         tsvin = csv.reader(input_file, delimiter='\t')
 
@@ -237,10 +262,9 @@ class DataLoader:
         chem_struc_ins = DBInserter(db_api_conn, 'insert into schembl_chemical_structure (schembl_chem_id, smiles, std_inchi, std_inchikey) values (:1, :2, :3, :4)')
         chem_map_ins = DBInserter(db_api_conn, 'insert into schembl_document_chemistry (schembl_doc_id, schembl_chem_id, field, frequency) values (:1, :2, :3, :4)')
 
-        # PREPARE - oracle
-
         chunk = []
 
+        # Process input records, in chunks
         for i, row in enumerate(tsvin):
 
             if (i == 0):
@@ -270,6 +294,7 @@ class DataLoader:
 
 
     def process_chem_rows(self, sql_alc_conn, chem_ins, chem_struc_ins, chem_map_ins, rows):
+        """Processes a batch of document-chemistry input records"""
 
         logger.debug( "Building set of unknown chemical IDs ({} known)".format(len(self.existing_chemicals)) )
 
@@ -296,12 +321,11 @@ class DataLoader:
 
         logger.debug( "Known chemical IDs now at: {}".format(len(self.existing_chemicals)) )
 
-        logger.debug( "Processing chemical mappings / building insert list" )
-
         new_chems = []
         new_chem_structs = []
         new_mappings = []
 
+        logger.debug( "Processing chemical mappings / building insert list" )
 
         for i, row in enumerate(rows):
 
@@ -311,6 +335,7 @@ class DataLoader:
             doc_id  = self.doc_id_map[ row[0] ]
             chem_id = int(row[1])
 
+            # Add the chemical - if it's new
             if chem_id not in self.existing_chemicals:
 
                 # # TODO handle incorrect column types
@@ -328,7 +353,7 @@ class DataLoader:
             new_mappings.append( (doc_id, chem_id, DocumentField.IMAGES,      int(row[19]) ) )
             new_mappings.append( (doc_id, chem_id, DocumentField.ATTACHMENTS, int(row[20]) ) )
 
-        # Execute 'insert many' here (oracle optimization) - having examined the batch
+        # Bulk insertions
         logger.debug("Performing {} chemical inserts".format(len(new_chems)) )
         chem_ins.insert(new_chems)
 
@@ -339,29 +364,34 @@ class DataLoader:
         chem_map_ins.insert( new_mappings)
 
 
-
-
-def chunks(l, n):
-    ''' Yield successive n-sized chunks from l. Via Stack Overflow.'''
-    for i in xrange(0, len(l), n):
-        yield (i+n, l[i:i+n] )
-
-def bib_scalar(biblio, key):
-    return biblio[key][0]
-
-
 class DBInserter:
+    """Convenience wrapper for DB-API functionality"""
 
     def __init__(self, db_api_conn, operation):
+        """Initialize a DBInserter, with a given connection and insert operation"""
         self.conn = db_api_conn
         self.cursor = db_api_conn.cursor()
         self.operation = operation
 
     def insert(self,data):
+        """Insert the given data, in bulk"""
         self.cursor.executemany(self.operation, data)
         self.conn.commit()
 
-
     def close(self):
+        """Clean up DBInserter resources"""
         self.cursor.close()
+
+
+### Support functions ###
+
+def chunks(l, n):
+    """ Yield successive n-sized chunks from l. Via Stack Overflow."""
+    for i in xrange(0, len(l), n):
+        yield (i+n, l[i:i+n] )
+
+def bib_scalar(biblio, key):
+    """Retrieve the value of a scalar field from input biblio data"""
+    return biblio[key][0]
+
 

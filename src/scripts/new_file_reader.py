@@ -6,6 +6,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 class NewFileReader:
+    """
+    Provides methods for reading file lists and contents from the SureChEMBL data feed.
+    """
 
     FRONT_FILE_LOC  = "/data/external/frontfile"
     BACK_FILE_LOC   = "/data/external/backfile"
@@ -20,22 +23,21 @@ class NewFileReader:
     FILE_PATH_REGEX = r"(.*/)([^/]+$)"
 
     def __init__(self, ftp):
-        '''
-        Initializes the NewFileReader
-        :param ftp: Instance of ftplib.FTP, already initialized and ready for server interaction.
-        '''
+        """
+        Create a NewFileReader object.
+        :param ftp: Instance of ftplib.FTP, must be initialized and ready for server interaction.
+        """
 
         self.ftp = ftp
         self.supp_regex = re.compile(self.SUPP_CHEM_REGEX)
 
 
     def new_files(self, from_date):
-        '''
-        Reads the list of new files from the FTP server, for the given date.
+        """
+        Read a list of new files from the FTP server, for the given date.
         :param from_date: The date to query
-        :return: List of file path strings, retrieved from the list of new files. File path strings
-        will be absolute paths on the FTP server.
-        '''
+        :return: List of absolute file paths on the FTP server.
+        """
 
         logger.info( "Identifying new files for {}".format(from_date) )
 
@@ -64,6 +66,11 @@ class NewFileReader:
         return abs_file_list
 
     def year_files(self, date_obj):
+        """
+        Read a list of files from the FTP server, for the given backfile year.
+        :param date_obj: Date object, only the year is used.
+        :return: List of absolute file paths on the FTP server.
+        """
 
         year = date_obj.year
         logger.info( "Identifying files for year {}".format(year) )
@@ -79,6 +86,11 @@ class NewFileReader:
         return abs_file_list
 
     def select_downloads(self, file_list):
+        """
+        Select files to download for data processing.
+        :param file_list: List of FTP server file paths.
+        :return: Filtered list of file paths; only data-feed relevant files will be included.
+        """
 
         logger.info( "Selecting files to download" )
 
@@ -104,12 +116,11 @@ class NewFileReader:
 
 
     def read_files(self,file_list,target_dir):
-        '''
-        Download the given files from the FTP server, into the given target folder.
-        :param file_list: List of file paths, relative to the FTP server
+        """
+        Download the files from the FTP server, into the target folder.
+        :param file_list: List of absoluete file paths on FTP server
         :param target_dir: Local file path to store the downloads in; will be created if non-existent
-        '''
-        # TODO add python docs throughout
+        """
 
         logger.info( "Creating target directory for download: [{}]".format(target_dir) )
         if not os.path.exists(target_dir):
