@@ -8,7 +8,6 @@ from mock import call
 
 from src.scripts.new_file_reader import NewFileReader
 
-
 chunks = ['''\
 path/to/file/1
 path/to/file/2

@@ -1,10 +1,13 @@
 # -*- coding: UTF-8 -*-
 
+import logging
 import unittest
 from datetime import date
-from sqlalchemy import create_engine, select, Column, Integer, Sequence
+from sqlalchemy import create_engine, select
 
 from src.scripts.data_loader import DataLoader, DocumentClass, DocumentField
+
+logging.basicConfig( format='%(asctime)s %(levelname)s %(name)s %(message)s', level=logging.INFO)
 
 class DataLoaderTests(unittest.TestCase):
 
@@ -86,10 +89,10 @@ class DataLoaderTests(unittest.TestCase):
         self.verify_classes( 25, DocumentClass.CPC,  ["H04L 29/08"])
 
     def test_classes_define_life_sci_flag(self):
-        # This test checks that the classifications determined the life_sci_relevant flag, in these scenarios:
-        # - present in ipc/ipcr/ecla/cpc fields as the only value
-        # - mixed in with other codes (before / after)
-        # - mixed in with similar codes (before / after)
+        # Checks that classifications determine the life_sci_relevant flag, when:
+        # - relevant classes present in ipc/ipcr/ecla/cpc fields (sole value)
+        # - relevant class appears as a prefix
+        # - mixed in with other/similar codes (before / after)
         result = self.load_n_query('data/biblio_typical.json')
         rows = result.fetchall()
 
@@ -102,14 +105,9 @@ class DataLoaderTests(unittest.TestCase):
 
     def test_classifications_set(self):
         default_classes = set(["A01", "A23", "A24", "A61", "A62B","C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13", "C14","G01N"])
-        test_loader = DataLoader(self.db)
-        self.failUnlessEqual( default_classes,           test_loader.relevant_classifications() )
+        local_loader = DataLoader(self.db)
+        self.failUnlessEqual( default_classes,           local_loader.relevant_classifications() )
         self.failUnlessEqual( self.test_classifications, self.loader.relevant_classifications() )
-
-    def test_malformed_files(self):
-        self.expect_runtime_error('data/chem_bad_header.tsv', "Malformed or missing header detected in chemical data file")
-        self.expect_runtime_error('data/chem_no_header.tsv', "Malformed or missing header detected in chemical data file")
-        self.expect_runtime_error('data/chem_wrong_columns.tsv', "Incorrect number of columns detected in chemical data file")
 
     ###### Chem loading tests ######
 
@@ -128,8 +126,7 @@ class DataLoaderTests(unittest.TestCase):
 
     def test_typical_chemfile(self):
         # Load chemical data, and check:
-        # 1) Many structures loaded, 2) duplicates handled, 3) Various values (negation etc)
-        # 4) chunk handling
+        # 1) Many structures loaded, 2) duplicates handled, 3) Various values (negation etc) 4) chunking
         # Rows are assumed to be in insertion order, matching input file
         self.load( ['data/biblio_typical.json','data/chem_typical.tsv'], 7 )
 
@@ -146,7 +143,7 @@ class DataLoaderTests(unittest.TestCase):
         self.verify_chemical( rows[2], (1645, 146.188, 1077470, 1, 0, -3.215, 3, 4, 0, 5) )
         self.verify_chemical( rows[8], (3001, 206.281, 275677,  1, 1, 3.844,  1, 2, 1, 4) )
 
-        self.verify_chemical_structure( rows[0], (48, 'OC1=CC=CC=C1', 'InChI=1S/C6H6O/c7-6-4-2-1-3-5-6/h1-5,7H', 'ISWSIDIOOBJBQZ-UHFFFAOYSA-N') )
+        self.verify_chemical_structure( rows[0], (48,   'OC1=CC=CC=C1', 'InChI=1S/C6H6O/c7-6-4-2-1-3-5-6/h1-5,7H', 'ISWSIDIOOBJBQZ-UHFFFAOYSA-N') )
         self.verify_chemical_structure( rows[2], (1645, 'NCCCCC(N)C(O)=O', 'InChI=1S/C6H14N2O2/c7-4-2-1-3-5(8)6(9)10/h5H,1-4,7-8H2,(H,9,10)', 'KDXKERNSBIXSRK-UHFFFAOYSA-N') )
         self.verify_chemical_structure( rows[8], (3001, 'CC(C)CC1=CC=C(C=C1)C(C)C(O)=O', 'InChI=1S/C13H18O2/c1-9(2)8-11-4-6-12(7-5-11)10(3)13(14)15/h4-7,9-10H,8H2,1-3H3,(H,14,15)', 'HEFNNWSXXWATRW-UHFFFAOYSA-N') )
 
@@ -184,24 +181,29 @@ class DataLoaderTests(unittest.TestCase):
         for exp_row, actual_row in zip(exp_rows, actual_rows):
             self.verify_doc_chem( actual_row, exp_row )
 
+    def test_malformed_files(self):
+        self.expect_runtime_error('data/chem_bad_header.tsv', "Malformed or missing header detected in chemical data file")
+        self.expect_runtime_error('data/chem_no_header.tsv', "Malformed or missing header detected in chemical data file")
+        self.expect_runtime_error('data/chem_wrong_columns.tsv', "Incorrect number of columns detected in chemical data file")
+
 
 
 
 
     ###### Support methods #######
-    def load_n_query(self, data_file, table=['schembl_document'], where_clause=(True == True), order_by_clause=('')):
+    def load_n_query(self, data_file, table=['schembl_document']):
         self.load([data_file])
-        return self.query(table, where_clause, order_by_clause)
+        return self.query(table)
 
     def load(self, file_names, def_chunk_parm=3):
         for file_name in file_names:
             if "chem" in file_name:
                 self.loader.load_chems( file_name, chunksize=def_chunk_parm )
             elif "biblio" in file_name:
-                self.loader.load_biblio( file_name )
+                self.loader.load_biblio( file_name, chunksize=def_chunk_parm )
 
-    def query(self, table=['schembl_document'], where_clause=(True == True), order_by_clause=('')):
-        s = select( [self.metadata.tables[table[0]]] ).where( where_clause ).order_by( order_by_clause )
+    def query(self, table=['schembl_document']):
+        s = select( [self.metadata.tables[table[0]]] )
         result = self.db.execute(s)
         return result
 

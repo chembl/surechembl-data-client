@@ -37,6 +37,29 @@ class DocumentClass:
 
 class DataLoader:
 
+    ## Expected Chemical CSV structure:
+    # 0  SCPN
+    # 1  SureChEMBL ID
+    # 2  SMILES
+    # 3  Standard InChi
+    # 4  Standard InChiKey
+    # 5  Names
+    # 6  Mol Weight
+    # 7  Chemical Corpus Count
+    # 8  Med Chem Alert
+    # 9  Is Relevant
+    # 10 LogP
+    # 11 Donor Count
+    # 12 Acceptor Count
+    # 13 Ring Count
+    # 14 Rotatable Bond Count
+    # 15 Title field count
+    # 16 Abstract field count
+    # 17 Claims field count
+    # 18 Description field count
+    # 19 Images field count
+    # 20 Attachments field count
+
     CHEM_HEADER_ROW = ['SCPN','SureChEMBL ID','SMILES','Standard InChi','Standard InChiKey','Names','Mol Weight',
                        'Chemical Corpus Count','Med Chem Alert','Is Relevant','LogP','Donor Count','Acceptor Count',
                        'Ring Count','Rotatable Bond Count','Title Count','Abstract Count','Claims Count',
@@ -108,7 +131,7 @@ class DataLoader:
     def relevant_classifications(self):
         return self.relevant_classes
 
-    def load_biblio(self, file_name, chunksize=1000):
+    def load_biblio(self, file_name, chunksize=10000):
 
         logger.info( "Loading biblio data from [{}]".format(file_name) )
 
@@ -122,13 +145,16 @@ class DataLoader:
         title_ins = DBInserter(db_api_conn, 'insert into schembl_document_title (schembl_doc_id, lang, text) values (:1, :2, :3)')
         classes_ins = DBInserter(db_api_conn, 'insert into schembl_document_class (schembl_doc_id, class, system) values (:1, :2, :3)')
 
-
         for chunk in chunks(biblio, chunksize):
+
+            logger.debug( "Processing biblio data to index {}".format(chunk[0]) )
 
             new_titles = []
             new_classes = []
 
-            for bib in chunk:
+            transaction = sql_alc_conn.begin()
+
+            for bib in chunk[1]:
 
                 # TODO missing / empty values rejected (or explicitly allowed)
 
@@ -159,13 +185,12 @@ class DataLoader:
                     'family_id'         : bib_scalar(bib, 'family_id'),
                     'life_sci_relevant' : int(life_sci_relevant) }
 
-                transaction = sql_alc_conn.begin()
                 result = sql_alc_conn.execute(doc_ins, record)
 
+                # TODO correct transaction / rollback handling
                 doc_id = result.inserted_primary_key[0] # Single PK
 
                 self.doc_id_map[pubnumber] = doc_id
-                transaction.commit()
 
                 # TODO missing titles handled
                 # TODO missing titles field handled
@@ -178,8 +203,12 @@ class DataLoader:
                     for classif in bib[system_key]:
                         new_classes.append( (doc_id, classif, DocumentClass.bib_dict[system_key] ) )
 
+            transaction.commit()
+
             # Bulk inserts
+            logger.debug("Performing {} title inserts".format(len(new_titles)) )
             title_ins.insert(new_titles)
+            logger.debug("Performing {} classification inserts".format(len(new_classes)) )
             classes_ins.insert(new_classes)
 
         # Clean up resources
@@ -189,8 +218,10 @@ class DataLoader:
         sql_alc_conn.close()
         input_file.close()
 
+        logger.info("Biblio import completed" )
 
-    def load_chems(self, file_name, chunksize=1000):
+
+    def load_chems(self, file_name, chunksize=10000):
 
         logger.info( "Loading chemicals from [{}]".format(file_name) )
 
@@ -218,13 +249,13 @@ class DataLoader:
                 continue
 
             if (i % chunksize == 0 and i > 0):
-                logger.info( "Processing chem-mapping data to index {}".format(i) )
+                logger.debug( "Processing chem-mapping data to index {}".format(i) )
                 self.process_chem_rows(sql_alc_conn, chem_ins, chem_struc_ins, chem_map_ins, chunk)
                 del chunk[:]
 
             chunk.append(row)
 
-        logger.info( "Processing chem-mapping data to index {} (final)".format(i) )
+        logger.debug( "Processing chem-mapping data to index {} (final)".format(i) )
         self.process_chem_rows(sql_alc_conn, chem_ins, chem_struc_ins, chem_map_ins, chunk)
 
         # Clean up resources
@@ -235,10 +266,12 @@ class DataLoader:
         sql_alc_conn.close()
         input_file.close()
 
+        logger.info("Chemical import completed" )
+
 
     def process_chem_rows(self, sql_alc_conn, chem_ins, chem_struc_ins, chem_map_ins, rows):
 
-        logger.info( "Building set of unknown chemical IDs ({} known)".format(len(self.existing_chemicals)) )
+        logger.debug( "Building set of unknown chemical IDs ({} known)".format(len(self.existing_chemicals)) )
 
         # Identify chemicals from the batch that we haven't seen before
         chem_ids = set()
@@ -249,7 +282,7 @@ class DataLoader:
             chem_ids.add( chem_id )
 
         # Search the DB to see if those chemicals are known
-        logger.info( "Searching DB for {} unknown chemical IDs".format(len(chem_ids)) )
+        logger.debug( "Searching DB for {} unknown chemical IDs".format(len(chem_ids)) )
         sel = select(
                 [self.chemicals.c.id])\
               .where(
@@ -261,9 +294,9 @@ class DataLoader:
         for found_chem in found_chems:
             self.existing_chemicals.add( found_chem[0] )
 
-        logger.info( "Known chemical IDs now at: {}".format(len(self.existing_chemicals)) )
+        logger.debug( "Known chemical IDs now at: {}".format(len(self.existing_chemicals)) )
 
-        logger.info( "Processing chemical mappings / building insert list" )
+        logger.debug( "Processing chemical mappings / building insert list" )
 
         new_chems = []
         new_chem_structs = []
@@ -296,16 +329,14 @@ class DataLoader:
             new_mappings.append( (doc_id, chem_id, DocumentField.ATTACHMENTS, int(row[20]) ) )
 
         # Execute 'insert many' here (oracle optimization) - having examined the batch
-        logger.info("Performing {} chemical inserts".format(len(new_chems)) )
+        logger.debug("Performing {} chemical inserts".format(len(new_chems)) )
         chem_ins.insert(new_chems)
 
-        logger.info("Performing {} chemical structure inserts".format(len(new_chem_structs)) )
+        logger.debug("Performing {} chemical structure inserts".format(len(new_chem_structs)) )
         chem_struc_ins.insert( new_chem_structs)
 
-        logger.info("Performing {} mapping inserts".format(len(new_mappings)) )
+        logger.debug("Performing {} mapping inserts".format(len(new_mappings)) )
         chem_map_ins.insert( new_mappings)
-
-        logger.info("Batch processed")
 
 
 
@@ -313,34 +344,10 @@ class DataLoader:
 def chunks(l, n):
     ''' Yield successive n-sized chunks from l. Via Stack Overflow.'''
     for i in xrange(0, len(l), n):
-        yield l[i:i+n]
+        yield (i+n, l[i:i+n] )
 
 def bib_scalar(biblio, key):
     return biblio[key][0]
-
-
-## Expected CSV structure:
-# 0  SCPN
-# 1  SureChEMBL ID
-# 2  SMILES
-# 3  Standard InChi
-# 4  Standard InChiKey
-# 5  Names
-# 6  Mol Weight
-# 7  Chemical Corpus Count
-# 8  Med Chem Alert
-# 9  Is Relevant
-# 10 LogP
-# 11 Donor Count
-# 12 Acceptor Count
-# 13 Ring Count
-# 14 Rotatable Bond Count
-# 15 Title field count
-# 16 Abstract field count
-# 17 Claims field count
-# 18 Description field count
-# 19 Images field count
-# 20 Attachments field count
 
 
 class DBInserter:

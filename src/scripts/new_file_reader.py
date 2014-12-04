@@ -37,13 +37,15 @@ class NewFileReader:
         will be absolute paths on the FTP server.
         '''
 
-        logger.info( "Searching for new files for {}".format(from_date) )
+        logger.info( "Identifying new files for {}".format(from_date) )
 
+        # TODO assert date object?
         new_files_loc = self.NEW_FILES_LOC.format(
             from_date.year,
             from_date.month,
             from_date.day)
 
+        # TODO gracefully handle missing directory
         self.ftp.cwd( new_files_loc )
 
         data = []
@@ -64,7 +66,7 @@ class NewFileReader:
     def year_files(self, date_obj):
 
         year = date_obj.year
-        logger.info( "Finding files for year {}".format(year) )
+        logger.info( "Identifying files for year {}".format(year) )
 
         year_path = self.YEAR_FILES_LOC.format(year)
 
@@ -95,6 +97,7 @@ class NewFileReader:
             bibl_files.add( self.supp_regex.sub(self.SUFFIX_BIBLIO, sc) )
 
         download_list = sorted(bibl_files) + sorted(chem_files)
+
         logger.info( "Selected {} files for download".format( len(download_list) ) )
 
         return download_list
