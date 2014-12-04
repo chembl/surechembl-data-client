@@ -1,4 +1,5 @@
 PyRSS2Gen==1.0.0
+SQLAlchemy==0.9.8
 Twisted==12.2.0
 altgraph==0.10.1
 bdist-mpkg==0.4.4
