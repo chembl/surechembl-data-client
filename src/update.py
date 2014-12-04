@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig( format='%(asctime)s %(levelname)s %(name)s %(message)s', level=logging.INFO)
 
 
+
 def main():
 
     logger.info("Starting SureChEMBL update process")
@@ -28,15 +29,13 @@ def main():
     parser.add_argument('db_user',     metavar='du', type=str,  help='Username for accessing the database')
     parser.add_argument('db_pass',     metavar='dp', type=str,  help='Password for accessing the database')
     parser.add_argument('working_dir', metavar='w',  type=str,  help='Working directory for downloaded files')
-    parser.add_argument('--dup_docs',  metavar='dd', type=bool, default=True, help='Flag indicating whether duplicate documents should be rejected')
-    parser.add_argument('--date',      metavar='d',  type=str,  default="today", help='The date to extract, format: YYYYMMDD. Defaults to today')
+    parser.add_argument('--dup_docs',  metavar='dd', type=bool, help='Flag indicating whether duplicate documents should be rejected', default=True )
+
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--date',      metavar='d',  type=str,  help='A date to extract, format: YYYYMMDD. Defaults to today',         default="today")
+    group.add_argument('--year',      metavar='d',  type=str,  help='A year to extract, format: YYYY')
 
     args = parser.parse_args()
-
-    if args.date == "today":
-        extract_date = date.today()
-    else:
-        extract_date = datetime.strptime(args.date, '%Y%m%d')
 
     logger.info("Ensure working directory is clean")
     call("rm {}/*biblio.json".format(args.working_dir), shell=True)
@@ -44,12 +43,11 @@ def main():
     call("rm {}/*chemicals.tsv".format(args.working_dir), shell=True)
     call("rm {}/*chemicals.tsv.gz".format(args.working_dir), shell=True)
 
-
-    # Download today's data files for processing
+    # Create object for reading files
     logger.info("Discovering and downloading data files")
     ftp = ftplib.FTP('ftp-private.ebi.ac.uk', args.ftp_user, args.ftp_pass)
     reader        = NewFileReader(ftp)
-    file_list     = reader.new_files( extract_date )                # TODO error handling - no files for today?
+    file_list     = get_target_files(args, reader)
     download_list = reader.select_downloads( file_list )
     reader.read_files( download_list, args.working_dir )
     logger.info("Download complete")
@@ -68,6 +66,24 @@ def main():
     for chem_file in filter( lambda f: f.endswith("chemicals.tsv"), downloads):
         loader.load_chems(args.working_dir + '/' + chem_file)
 
+
+def get_target_files(args, reader):
+
+    # TODO error handling - no files for given date/year
+    # TODO error handling - malformed date/year
+
+    # Get a list of files to download
+    if args.year != None:
+        yr_date_obj = datetime.strptime(args.year, '%Y')
+        file_list = reader.year_files( yr_date_obj )
+    else:
+        if args.date == "today":
+            extract_date = date.today()
+        else:
+            extract_date = datetime.strptime(args.date, '%Y%m%d')
+        file_list = reader.new_files(extract_date)
+
+    return file_list
 
 
 def get_db_engine(user,password):
