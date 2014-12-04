@@ -28,11 +28,12 @@ def chunk_writer(*args, **kwargs):
 class FTPTests(unittest.TestCase):
 
     def setUp(self):
-        # shutil.rmtree("/tmp/schembl_ftp_test", True)
+        shutil.rmtree("/tmp/schembl_ftp_test", True)
         self.ftp = ftplib.FTP()
         self.ftp.cwd        = MagicMock(return_value=None)
         self.ftp.retrbinary = MagicMock(return_value=None)
         self.ftp.retrbinary.side_effect = chunk_writer
+
         self.reader = NewFileReader(self.ftp)
 
     def test_create_new_file_reader(self):
@@ -40,30 +41,46 @@ class FTPTests(unittest.TestCase):
 
     def test_change_working_dir(self):
         self.reader.new_files( datetime.date(2013,11,4) )
-        self.ftp.cwd.assert_called_with( "data/external/frontfile/2013/11/04" )
+        self.ftp.cwd.assert_called_with( "/data/external/frontfile/2013/11/04" )
 
     def test_get_new_files(self):
 
         files = self.reader.new_files( datetime.date(2012,10,3) )
 
-        self.ftp.cwd.assert_called_with( "data/external/frontfile/2012/10/03" )
+        self.ftp.cwd.assert_called_with( "/data/external/frontfile/2012/10/03" )
         self.ftp.retrbinary.assert_called_with( "RETR newfiles.txt", ANY )
 
         self.failUnlessEqual(
             files,
-            ['path/to/file/1',
-             'path/to/file/2',
-             'path/to/file/3',
-             'longer/path/to/different/file/A',
-             'longer/path/to/different/file/B',
-             'longer/path/to/different/file/C'
+            ['/data/external/frontfile/path/to/file/1',
+             '/data/external/frontfile/path/to/file/2',
+             '/data/external/frontfile/path/to/file/3',
+             '/data/external/frontfile/longer/path/to/different/file/A',
+             '/data/external/frontfile/longer/path/to/different/file/B',
+             '/data/external/frontfile/longer/path/to/different/file/C'
              ])
 
+    def test_get_year_files(self):
+        ftp_file_list = ['file0.biblio.json.gz','file2.txt','file3.chemicals.tsv.gz']
+        exp_file_list = ['/data/external/backfile/2011/file0.biblio.json.gz',
+                         '/data/external/backfile/2011/file2.txt',
+                         '/data/external/backfile/2011/file3.chemicals.tsv.gz']
+
+        self.ftp.nlst = MagicMock( return_value= ftp_file_list )
+        actual_files = self.reader.year_files( datetime.date(2011,1,1) )
+
+        self.ftp.cwd.assert_called_with( "/data/external/backfile/2011" )
+        self.ftp.nlst.assert_called_with()
+
+        self.failUnlessEqual( exp_file_list, actual_files )
+
     def test_get_download_list(self):
-        self.verify_dl_list([],[])
         self.verify_dl_list(
-            ['path/orig.chemicals.tsv.gz', 'path/orig.biblio.json.gz'],
-            ['path/orig.biblio.json.gz', 'path/orig.chemicals.tsv.gz'])
+            [],
+            [])
+        self.verify_dl_list(
+            ['/path/orig.chemicals.tsv.gz', '/path/orig.biblio.json.gz'],
+            ['/path/orig.biblio.json.gz', '/path/orig.chemicals.tsv.gz'])
         self.verify_dl_list(
             ['path/new_supp2.chemicals.tsv.gz'],
             ['path/new.biblio.json.gz', 'path/new_supp2.chemicals.tsv.gz'])
@@ -71,8 +88,8 @@ class FTPTests(unittest.TestCase):
             ['chemicals.json'],
             [])
         self.verify_dl_list(
-            ['path/orig.chemicals.tsv.gz', 'path/orig.biblio.json.gz', 'path/new_supp2.chemicals.tsv.gz', 'other/file'],
-            ['path/new.biblio.json.gz', 'path/orig.biblio.json.gz', 'path/new_supp2.chemicals.tsv.gz', 'path/orig.chemicals.tsv.gz'])
+            ['/path/orig.chemicals.tsv.gz', '/path/orig.biblio.json.gz', '/path/new_supp2.chemicals.tsv.gz', '/other/file'],
+            ['/path/new.biblio.json.gz', '/path/orig.biblio.json.gz', '/path/new_supp2.chemicals.tsv.gz', '/path/orig.chemicals.tsv.gz'])
 
 
     def verify_dl_list(self, input_list, expected):
@@ -84,7 +101,7 @@ class FTPTests(unittest.TestCase):
         self.reader.read_files(
             ['/path/one/bib.dat','/path/two/chem.dat'], '/tmp/schembl_ftp_test')
 
-        calls = [call('/data/external/frontfile/path/one/'),call('/data/external/frontfile/path/two/')]
+        calls = [call('/path/one/'),call('/path/two/')]
         self.ftp.cwd.assert_has_calls(calls, any_order=False)
 
         calls = [call("RETR bib.dat", ANY),call("RETR chem.dat", ANY)]
