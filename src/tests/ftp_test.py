@@ -39,12 +39,12 @@ class FTPTests(unittest.TestCase):
         self.failUnless( isinstance(self.reader, NewFileReader) )
 
     def test_change_working_dir(self):
-        self.reader.new_files( datetime.date(2013,11,4) )
+        self.reader.get_frontfile_new( datetime.date(2013,11,4) )
         self.ftp.cwd.assert_called_with( "/data/external/frontfile/2013/11/04" )
 
     def test_get_new_files(self):
 
-        files = self.reader.new_files( datetime.date(2012,10,3) )
+        files = self.reader.get_frontfile_new( datetime.date(2012,10,3) )
 
         self.ftp.cwd.assert_called_with( "/data/external/frontfile/2012/10/03" )
         self.ftp.retrbinary.assert_called_with( "RETR newfiles.txt", ANY )
@@ -59,18 +59,19 @@ class FTPTests(unittest.TestCase):
              '/data/external/frontfile/longer/path/to/different/file/C'
              ])
 
-    def test_get_year_files(self):
-        ftp_file_list = ['file0.biblio.json.gz','file2.txt','file3.chemicals.tsv.gz']
-        exp_file_list = ['/data/external/backfile/2011/file0.biblio.json.gz',
-                         '/data/external/backfile/2011/file2.txt',
-                         '/data/external/backfile/2011/file3.chemicals.tsv.gz']
 
-        self.ftp.nlst = MagicMock( return_value= ftp_file_list )
-        actual_files = self.reader.year_files( datetime.date(2011,1,1) )
+    def test_get_files_by_timeperiod(self):
+        self.verify_file_retrieval(lambda : self.reader.get_frontfile_all(datetime.date(2013, 11, 4)), "/data/external/frontfile/2013/11/04")
+        self.verify_file_retrieval(lambda : self.reader.get_backfile_year(datetime.date(2011, 1, 1)), "/data/external/backfile/2011")
 
-        self.ftp.cwd.assert_called_with( "/data/external/backfile/2011" )
+    def verify_file_retrieval(self, f, exp_path):
+        ftp_file_list = ['file0.biblio.json.gz', 'file2.txt', 'file3.chemicals.tsv.gz']
+        exp_file_list = map( lambda f: "{}/{}".format(exp_path,f), ftp_file_list)
+        self.ftp.nlst = MagicMock(return_value=ftp_file_list)
+
+        actual_files = f()
+        self.ftp.cwd.assert_called_with(exp_path)
         self.ftp.nlst.assert_called_with()
-
         self.failUnlessEqual( exp_file_list, actual_files )
 
     def test_get_download_list(self):

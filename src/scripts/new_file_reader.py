@@ -12,7 +12,7 @@ class NewFileReader:
 
     FRONT_FILE_LOC  = "/data/external/frontfile"
     BACK_FILE_LOC   = "/data/external/backfile"
-    NEW_FILES_LOC   = FRONT_FILE_LOC + "/{0}/{1}/{2:02d}"
+    DAY_FILES_LOC   = FRONT_FILE_LOC + "/{0}/{1}/{2:02d}"
     YEAR_FILES_LOC  = BACK_FILE_LOC + "/{0}"
     NEW_FILES_NAME  = "newfiles.txt"
 
@@ -32,7 +32,7 @@ class NewFileReader:
         self.supp_regex = re.compile(self.SUPP_CHEM_REGEX)
 
 
-    def new_files(self, from_date):
+    def get_frontfile_new(self, from_date):
         """
         Read a list of new files from the FTP server, for the given date.
         :param from_date: The date to query
@@ -42,7 +42,7 @@ class NewFileReader:
         logger.info( "Identifying new files for {}".format(from_date) )
 
         # TODO assert date object?
-        new_files_loc = self.NEW_FILES_LOC.format(
+        new_files_loc = self.DAY_FILES_LOC.format(
             from_date.year,
             from_date.month,
             from_date.day)
@@ -65,7 +65,25 @@ class NewFileReader:
 
         return abs_file_list
 
-    def year_files(self, date_obj):
+
+    def get_frontfile_all(self, date):
+
+        logger.info( "Identifying files for day {}".format(date) )
+
+        day_files_path = self.DAY_FILES_LOC.format(
+            date.year,
+            date.month,
+            date.day)
+
+        self.ftp.cwd( day_files_path )
+        ftp_file_list = self.ftp.nlst()
+        abs_file_list = map( lambda f: "{0}/{1}".format(day_files_path, f), ftp_file_list)
+
+        logger.info( "Discovered {} files".format(len(abs_file_list)) )
+
+        return abs_file_list
+
+    def get_backfile_year(self, date_obj):
         """
         Read a list of files from the FTP server, for the given backfile year.
         :param date_obj: Date object, only the year is used.
@@ -142,5 +160,6 @@ class NewFileReader:
             # TODO resilient download / error checking / retry
 
             fhandle.close()
+
 
 
