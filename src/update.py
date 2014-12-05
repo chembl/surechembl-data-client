@@ -25,19 +25,19 @@ def main():
     parser = argparse.ArgumentParser(description='Load data into the SureChEMBL database')
     parser.add_argument('ftp_user',      metavar='fu', type=str,  help='Username for accessing the EBI FTP site')
     parser.add_argument('ftp_pass',      metavar='fp', type=str,  help='Password for accessing the EBI FTP site')
-    parser.add_argument('db_user',       metavar='du', type=str,  help='Username for accessing the database')
-    parser.add_argument('db_pass',       metavar='dp', type=str,  help='Password for accessing the database')
+    parser.add_argument('db_user',       metavar='du', type=str,  help='Username for accessing the target database')
+    parser.add_argument('db_pass',       metavar='dp', type=str,  help='Password for accessing the target database')
     parser.add_argument('--db_host',     metavar='dh', type=str,  help='Host where the database can be found',     default="127.0.0.1")
     parser.add_argument('--db_port',     metavar='do', type=str,  help='Port over which the database is accessed', default="1521")
-    parser.add_argument('--db_name',     metavar='dn', type=str,  help='Database name',                            default="XE")
+    parser.add_argument('--db_name',     metavar='dn', type=str,  help='Database name (for connection string)',    default="XE")
     parser.add_argument('--working_dir', metavar='w',  type=str,  help='Working directory for downloaded files',   default="/tmp/schembl_ftp_data")
 
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('--date',         metavar='d',  type=str,  help='A date to extract from the front file, format: YYYYMMDD. Defaults to today', default="today")
+    group.add_argument('--date',         metavar='d',  type=str,  help='A date to extract from the front file, format: YYYYMMDD; defaults to today', default="today")
     group.add_argument('--year',         metavar='y',  type=str,  help='A year to extract from the back file, format: YYYY')
 
     # Flags to adjust loading behaviour
-    parser.add_argument('--all',         help='Flag: download all files, or just new files? Front file only', action="store_true")
+    parser.add_argument('--all',         help='Download all files, or just new files? Front file only', action="store_true")
 
     args = parser.parse_args()
 
