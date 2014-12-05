@@ -38,7 +38,6 @@ def main():
 
     # Flags to adjust loading behaviour
     parser.add_argument('--all',         help='Flag: download all files, or just new files? Front file only', action="store_true")
-    parser.add_argument('--dup_docs',    help='Flag: should duplicate documents be rejected?',                action="store_true" )
 
     args = parser.parse_args()
 
@@ -75,7 +74,7 @@ def main():
 
     try:
         db = get_db_engine(args)
-        loader = DataLoader(db, allow_doc_dups=args.dup_docs)
+        loader = DataLoader(db, allow_doc_dups=True)
 
         for bib_file in filter( lambda f: f.endswith("biblio.json"), downloads):
             loader.load_biblio( "{}/{}".format( args.working_dir,bib_file ) )
