@@ -267,9 +267,9 @@ class DataLoader:
         # Process input records, in chunks
         for i, row in enumerate(tsvin):
 
-            if (i == 0):
+            if (i == 0) and row[0] == 'SCPN':
                 if row != self.CHEM_HEADER_ROW:
-                    raise RuntimeError("Malformed or missing header detected in chemical data file")
+                    raise RuntimeError("Malformed header detected in chemical data file")
                 continue
 
             if (i % chunksize == 0 and i > 0):

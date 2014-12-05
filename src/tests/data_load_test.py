@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, select
 
 from src.scripts.data_loader import DataLoader, DocumentClass, DocumentField
 
-logging.basicConfig( format='%(asctime)s %(levelname)s %(name)s %(message)s', level=logging.INFO)
+logging.basicConfig( format='%(asctime)s %(levelname)s %(name)s %(message)s', level=logging.ERROR)
 
 class DataLoaderTests(unittest.TestCase):
 
@@ -148,7 +148,7 @@ class DataLoaderTests(unittest.TestCase):
         self.verify_chemical_structure( rows[8], (3001, 'CC(C)CC1=CC=C(C=C1)C(C)C(O)=O', 'InChI=1S/C13H18O2/c1-9(2)8-11-4-6-12(7-5-11)10(3)13(14)15/h4-7,9-10H,8H2,1-3H3,(H,14,15)', 'HEFNNWSXXWATRW-UHFFFAOYSA-N') )
 
     def test_mapping_loaded(self):
-        self.load(['data/biblio_single_row.json','data/chem_single_row.tsv'])
+        self.load(['data/biblio_single_row.json','data/chem_single_row_nohdr.tsv'])
         rows = self.query(['schembl_document_chemistry']).fetchall()
 
         exp_rows = [ (DocumentField.TITLE,11), (DocumentField.ABSTRACT,9), (DocumentField.CLAIMS,7), (DocumentField.DESCRIPTION,5), (DocumentField.IMAGES,3), (DocumentField.ATTACHMENTS,1)]
@@ -182,8 +182,7 @@ class DataLoaderTests(unittest.TestCase):
             self.verify_doc_chem( actual_row, exp_row )
 
     def test_malformed_files(self):
-        self.expect_runtime_error('data/chem_bad_header.tsv', "Malformed or missing header detected in chemical data file")
-        self.expect_runtime_error('data/chem_no_header.tsv', "Malformed or missing header detected in chemical data file")
+        self.expect_runtime_error('data/chem_bad_header.tsv', "Malformed header detected in chemical data file")
         self.expect_runtime_error('data/chem_wrong_columns.tsv', "Incorrect number of columns detected in chemical data file")
 
 
