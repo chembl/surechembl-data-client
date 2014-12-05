@@ -63,6 +63,15 @@ class DataLoaderTests(unittest.TestCase):
         self.verify_title( rows[60], (25,"FR", u"PROCÉDÉ, SYSTÈME ET DISPOSITIF D'ACQUISITION D'INFORMATIONS SUR LES RESSOURCES, POUR DISPOSITIF TERMINAL DE L'INTERNET DES OBJETS") )
         self.verify_title( rows[61], (25,"ZH", u"一种物联网终端设备的资源信息获取方法、系统及设备") )
 
+    def test_duplicate_titles(self):
+        rows = self.load_n_query('data/biblio_dup_titles.json', ['schembl_document_title']).fetchall()
+        self.failUnlessEqual( 4, len(rows) )
+        # Row ordering is based on dictionary; may be brittle
+        self.verify_title( rows[0],  (1, "FR", u"UTILISATION D'UN FILM ADHÉSIF À RÉACTIVITÉ LATENTE POUR LE COLLAGE DE PLASTIQUE SUR DE L'ALUMINIUM ANODISÉ") )
+        self.verify_title( rows[1],  (1, "DE", u"VERWENDUNG EINES LATENTREAKTIVEN KLEBEFILMS ZUR VERKLEBUNG VON ELOXIERTEM ALUMINIUM MIT KUNSTSTOFF") )
+        self.verify_title( rows[2],  (1, "EN", u"USE OF A LATENTLY REACTIVE ADHESIVE FILM FOR ADHESIVE BONDING") )
+        self.verify_title( rows[3],  (2, "DE", u"VERWENDUNG EINES LATENTREAKTIVEN KLEBEFILMS ZUR VERKLEBUNG VON ELOXIERTEM ALUMINIUM MIT KUNSTSTOFF") )
+
     def test_classifications_simple(self):
         result = self.load_n_query('data/biblio_single_row.json', ['schembl_document_class'])
         rows = result.fetchall()

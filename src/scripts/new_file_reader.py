@@ -41,7 +41,6 @@ class NewFileReader:
 
         logger.info( "Identifying new files for {}".format(from_date) )
 
-        # TODO assert date object?
         new_files_loc = self.DAY_FILES_LOC.format(
             from_date.year,
             from_date.month,

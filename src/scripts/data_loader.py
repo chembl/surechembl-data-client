@@ -214,10 +214,17 @@ class DataLoader:
                 self.doc_id_map[pubnumber] = doc_id
 
                 # TODO missing titles handled
-                # TODO missing titles field handled
-                titles = bib['title']
-                for i, title_lang in enumerate( bib['title_lang'] ):
-                    new_titles.append( (doc_id, title_lang, titles[i] ) )
+                # TODO missing title languages handled
+                unique_titles = dict()
+                for title_lang, title in zip( bib['title_lang'], bib['title'] ):
+                    if title_lang in unique_titles:
+                        if len(title) < 15:
+                            continue
+                        title = min( title, unique_titles[title_lang][2] )
+                    unique_titles[title_lang] = (doc_id, title_lang, title )
+
+                new_titles.extend( unique_titles.values() )
+
 
                 # TODO missing classification fields handled
                 for system_key in ['ipc','ecla','ipcr','cpc']:
