@@ -7,10 +7,11 @@ from datetime import date
 from datetime import datetime
 import os
 import ftplib
-from subprocess import call
+from subprocess import call, check_call
 from sqlalchemy import create_engine
 from scripts.new_file_reader import NewFileReader
 from scripts.data_loader import DataLoader
+import cx_Oracle
 
 
 logging.basicConfig( format='%(asctime)s %(levelname)s %(name)s %(message)s', level=logging.INFO)
@@ -20,9 +21,8 @@ def main():
 
     logger.info("Starting SureChEMBL update process")
 
-    # Parse command line arguments
+    # Parse core command line arguments
     parser = argparse.ArgumentParser(description='Load data into the SureChEMBL database')
-
     parser.add_argument('ftp_user',      metavar='fu', type=str,  help='Username for accessing the EBI FTP site')
     parser.add_argument('ftp_pass',      metavar='fp', type=str,  help='Password for accessing the EBI FTP site')
     parser.add_argument('db_user',       metavar='du', type=str,  help='Username for accessing the database')
@@ -31,11 +31,14 @@ def main():
     parser.add_argument('--db_port',     metavar='do', type=str,  help='Port over which the database is accessed', default="1521")
     parser.add_argument('--db_name',     metavar='dn', type=str,  help='Database name',                            default="XE")
     parser.add_argument('--working_dir', metavar='w',  type=str,  help='Working directory for downloaded files',   default="/tmp/schembl_ftp_data")
-    parser.add_argument('--dup_docs',    metavar='dd', type=bool, help='Flag indicating whether duplicate documents should be rejected', default=True )
 
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('--date',      metavar='d',  type=str,  help='A date to extract, format: YYYYMMDD. Defaults to today', default="today")
-    group.add_argument('--year',      metavar='y',  type=str,  help='A year to extract, format: YYYY')
+    group.add_argument('--date',         metavar='d',  type=str,  help='A date to extract from the front file, format: YYYYMMDD. Defaults to today', default="today")
+    group.add_argument('--year',         metavar='y',  type=str,  help='A year to extract from the back file, format: YYYY')
+
+    # Flags to adjust loading behaviour
+    parser.add_argument('--all',         help='Flag: download all files, or just new files? Front file only', action="store_true")
+    parser.add_argument('--dup_docs',    help='Flag: should duplicate documents be rejected?',                action="store_true" )
 
     args = parser.parse_args()
 
@@ -50,27 +53,43 @@ def main():
 
     ftp = ftplib.FTP('ftp-private.ebi.ac.uk', args.ftp_user, args.ftp_pass)
     reader = NewFileReader(ftp)
+
     download_list = get_target_files(args, reader)
+
+    if len( download_list ) == 0:
+        logger.info("No files detected for download, exiting")
+        return
+
     reader.read_files( download_list, args.working_dir )
 
     logger.info("Download complete, unzipping contents of working directory")
 
-    call("gunzip {}/*.gz".format(args.working_dir), shell=True)     # TODO terminate on error
+    if len( os.listdir(args.working_dir) ) == 0:
+        logger.error("Files were downloaded, but the working directory is empty")
+        raise RuntimeError( "Working directory [{}] is empty".format(args.working_dir) )
+
+    check_call("gunzip {}/*.gz".format(args.working_dir), shell=True)
     downloads = os.listdir(args.working_dir)
 
     logger.info("Loading data files into DB")
 
-    db = get_db_engine(args)
-    loader = DataLoader(db, allow_doc_dups=args.dup_docs)
+    try:
+        db = get_db_engine(args)
+        loader = DataLoader(db, allow_doc_dups=args.dup_docs)
 
-    for bib_file in filter( lambda f: f.endswith("biblio.json"), downloads):
-        loader.load_biblio( "{}/{}".format( args.working_dir,bib_file ) )
+        for bib_file in filter( lambda f: f.endswith("biblio.json"), downloads):
+            loader.load_biblio( "{}/{}".format( args.working_dir,bib_file ) )
 
-    for chem_file in filter( lambda f: f.endswith("chemicals.tsv"), downloads):
-        loader.load_chems( "{}/{}".format( args.working_dir,chem_file ) )
+        for chem_file in filter( lambda f: f.endswith("chemicals.tsv"), downloads):
+            loader.load_chems( "{}/{}".format( args.working_dir,chem_file ) )
 
-    logger.info("Processing complete, exiting")
+        logger.info("Processing complete, exiting")
 
+    except cx_Oracle.DatabaseError, exc:
+        # Specialized display handling for Oracle exceptions
+        error, = exc.args
+        logger.error( "Oracle exception detected. Code={}, Message={}".format( error.code, error.message) )
+        raise
 
 def get_target_files(args, reader):
     """
@@ -80,15 +99,16 @@ def get_target_files(args, reader):
     :return: List of files to download and process.
     """
 
-    # TODO error handling - no files for given date/year
-    # TODO error handling - malformed date/year
-
     if args.year != None:
-        file_list = reader.year_files( datetime.strptime(args.year, '%Y') )
-    elif args.date == "today":
-        file_list = reader.new_files( date.today() )
+        target_year = datetime.strptime(args.year, '%Y')
+        file_list = reader.get_backfile_year( target_year )
     else:
-        file_list = reader.new_files( datetime.strptime(args.date, '%Y%m%d') )
+        target_date = date.today() if args.date == "today" else datetime.strptime(args.date, '%Y%m%d')
+
+        if args.all:
+            file_list = reader.get_frontfile_all( target_date )
+        else:
+            file_list = reader.get_frontfile_new( target_date )
 
     download_list = reader.select_downloads( file_list )
 
