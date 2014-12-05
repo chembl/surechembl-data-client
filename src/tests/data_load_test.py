@@ -53,20 +53,20 @@ class DataLoaderTests(unittest.TestCase):
         result = self.load_n_query('data/biblio_typical.json', ['schembl_document_title'])
         rows = result.fetchall()
         self.failUnlessEqual( 62, len(rows) )
-        self.verify_title( rows[0],  (1, "DE", u"VERWENDUNG EINES LATENTREAKTIVEN KLEBEFILMS ZUR VERKLEBUNG VON ELOXIERTEM ALUMINIUM MIT KUNSTSTOFF") )
-        self.verify_title( rows[1],  (1, "EN", u"USE OF A LATENTLY REACTIVE ADHESIVE FILM FOR ADHESIVE BONDING OF ELOXATED ALUMINIUM TO PLASTIC") )
-        self.verify_title( rows[2],  (1, "FR", u"UTILISATION D'UN FILM ADHÉSIF À RÉACTIVITÉ LATENTE POUR LE COLLAGE DE PLASTIQUE SUR DE L'ALUMINIUM ANODISÉ") )
-        self.verify_title( rows[56], (24,"EN", u"TRAFFIC SHAPING DRIVE METHOD AND DRIVER") )
-        self.verify_title( rows[57], (24,"FR", u"PROCÉDÉ DE PILOTAGE DE MISE EN FORME DE TRAFIC ET ORGANE PILOTAGE") )
+        # Row ordering is based on dictionary; may be brittle
+        self.verify_title( rows[0],  (1, "FR", u"UTILISATION D'UN FILM ADHÉSIF À RÉACTIVITÉ LATENTE POUR LE COLLAGE DE PLASTIQUE SUR DE L'ALUMINIUM ANODISÉ") )
+        self.verify_title( rows[1],  (1, "DE", u"VERWENDUNG EINES LATENTREAKTIVEN KLEBEFILMS ZUR VERKLEBUNG VON ELOXIERTEM ALUMINIUM MIT KUNSTSTOFF") )
+        self.verify_title( rows[2],  (1, "EN", u"USE OF A LATENTLY REACTIVE ADHESIVE FILM FOR ADHESIVE BONDING OF ELOXATED ALUMINIUM TO PLASTIC") )
+        self.verify_title( rows[56], (24,"FR", u"PROCÉDÉ DE PILOTAGE DE MISE EN FORME DE TRAFIC ET ORGANE PILOTAGE") )
+        self.verify_title( rows[57], (24,"EN", u"TRAFFIC SHAPING DRIVE METHOD AND DRIVER") )
         self.verify_title( rows[58], (24,"ZH", u"一种流量整形的驱动方法及驱动器") )
-        self.verify_title( rows[59], (25,"EN", u"RESOURCE INFORMATION ACQUISITION METHOD, SYSTEM AND DEVICE FOR INTERNET OF THINGS TERMINAL DEVICE") )
-        self.verify_title( rows[60], (25,"FR", u"PROCÉDÉ, SYSTÈME ET DISPOSITIF D'ACQUISITION D'INFORMATIONS SUR LES RESSOURCES, POUR DISPOSITIF TERMINAL DE L'INTERNET DES OBJETS") )
+        self.verify_title( rows[59], (25,"FR", u"PROCÉDÉ, SYSTÈME ET DISPOSITIF D'ACQUISITION D'INFORMATIONS SUR LES RESSOURCES, POUR DISPOSITIF TERMINAL DE L'INTERNET DES OBJETS") )
+        self.verify_title( rows[60], (25,"EN", u"RESOURCE INFORMATION ACQUISITION METHOD, SYSTEM AND DEVICE FOR INTERNET OF THINGS TERMINAL DEVICE") )
         self.verify_title( rows[61], (25,"ZH", u"一种物联网终端设备的资源信息获取方法、系统及设备") )
 
-    def test_duplicate_titles(self):
+    def test_titles_duplicate(self):
         rows = self.load_n_query('data/biblio_dup_titles.json', ['schembl_document_title']).fetchall()
         self.failUnlessEqual( 4, len(rows) )
-        # Row ordering is based on dictionary; may be brittle
         self.verify_title( rows[0],  (1, "FR", u"UTILISATION D'UN FILM ADHÉSIF À RÉACTIVITÉ LATENTE POUR LE COLLAGE DE PLASTIQUE SUR DE L'ALUMINIUM ANODISÉ") )
         self.verify_title( rows[1],  (1, "DE", u"VERWENDUNG EINES LATENTREAKTIVEN KLEBEFILMS ZUR VERKLEBUNG VON ELOXIERTEM ALUMINIUM MIT KUNSTSTOFF") )
         self.verify_title( rows[2],  (1, "EN", u"USE OF A LATENTLY REACTIVE ADHESIVE FILM FOR ADHESIVE BONDING") )
@@ -117,6 +117,13 @@ class DataLoaderTests(unittest.TestCase):
         local_loader = DataLoader(self.db)
         self.failUnlessEqual( default_classes,           local_loader.relevant_classifications() )
         self.failUnlessEqual( self.test_classifications, self.loader.relevant_classifications() )
+
+    def test_missing_data_handled(self):
+        rows = self.load_n_query('data/biblio_missing_data.json').fetchall()
+        self.failUnlessEqual( 3, len(rows) )
+        self.verify_doc( rows[0], (1,'WO-2013127697-A1',date(2013,9,6),0,47747634) )
+        self.verify_doc( rows[1], (2,'WO-2013127698-A1',date(2013,9,6),0,47748611) )
+        self.verify_doc( rows[2], (3,'WO-2013189394-A2',date(2013,12,27),0,49769540) )
 
     ###### Chem loading tests ######
 

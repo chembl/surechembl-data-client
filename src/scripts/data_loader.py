@@ -195,10 +195,13 @@ class DataLoader:
 
                 # Work out of the document is relevant to life science
                 life_sci_relevant = 0
-                for system_key in ['ipc','ecla','ipcr','cpc']:
-                    for classif in bib[system_key]:
-                        if life_sci_relevant == 0 and self.relevant_regex.match(classif):
-                            life_sci_relevant = 1
+                for system_key in ('ipc','ecla','ipcr','cpc'):
+                    try:
+                        for classif in bib[system_key]:
+                            if life_sci_relevant == 0 and self.relevant_regex.match(classif):
+                                life_sci_relevant = 1
+                    except KeyError:
+                        logger.warn("Document {} is missing {} classification data".format(pubnumber,system_key))
 
                 # Create a new record for the document
                 record = {
@@ -213,23 +216,29 @@ class DataLoader:
                 doc_id = result.inserted_primary_key[0] # Single PK
                 self.doc_id_map[pubnumber] = doc_id
 
-                # TODO missing titles handled
-                # TODO missing title languages handled
-                unique_titles = dict()
-                for title_lang, title in zip( bib['title_lang'], bib['title'] ):
-                    if title_lang in unique_titles:
-                        if len(title) < 15:
-                            continue
-                        title = min( title, unique_titles[title_lang][2] )
-                    unique_titles[title_lang] = (doc_id, title_lang, title )
+                try:
+                    title_languages = bib['title_lang']
+                    title_strings = bib['title']
 
-                new_titles.extend( unique_titles.values() )
+                    unique_titles = dict()
+                    for title_lang, title in zip( title_languages, title_strings ):
+                        if title_lang in unique_titles:
+                            if len(title) < 15:
+                                continue
+                            title = min( title, unique_titles[title_lang][2] )
+                        unique_titles[title_lang] = (doc_id, title_lang, title )
 
+                    new_titles.extend( unique_titles.values() )
 
-                # TODO missing classification fields handled
-                for system_key in ['ipc','ecla','ipcr','cpc']:
-                    for classif in bib[system_key]:
-                        new_classes.append( (doc_id, classif, DocumentClass.bib_dict[system_key] ) )
+                except KeyError:
+                    logger.warn("KeyError detected when processing titles for {}; title language or text data may be missing".format(pubnumber))
+
+                for system_key in ('ipc','ecla','ipcr','cpc'):
+                    try:
+                        for classif in bib[system_key]:
+                            new_classes.append( (doc_id, classif, DocumentClass.bib_dict[system_key] ) )
+                    except KeyError:
+                        logger.warn("Document {} is missing {} classification data".format(pubnumber,system_key))
 
             transaction.commit()
 
