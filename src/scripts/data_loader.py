@@ -175,10 +175,13 @@ class DataLoader:
 
             for bib in chunk[1]:
 
-                # TODO missing / empty values rejected (or explicitly allowed)
-
-                pubnumber = bib_scalar(bib, 'pubnumber')
-                pubdate = datetime.strptime( bib_scalar( bib,'pubdate'), '%Y%m%d')
+                # TODO empty values rejected
+                try:
+                    pubnumber = bib_scalar(bib, 'pubnumber')
+                    pubdate   = datetime.strptime( bib_scalar( bib,'pubdate'), '%Y%m%d')
+                    family_id = bib_scalar(bib, 'family_id')
+                except KeyError, exc:
+                    raise RuntimeError("Document is missing mandatory biblio field (KeyError: {})".format(exc))
 
                 # Check if this document is known, or exists...
                 if self.allow_document_dups:
@@ -207,7 +210,7 @@ class DataLoader:
                 record = {
                     'scpn'              : pubnumber,
                     'published'         : pubdate,
-                    'family_id'         : bib_scalar(bib, 'family_id'),
+                    'family_id'         : family_id,
                     'life_sci_relevant' : int(life_sci_relevant) }
 
                 result = sql_alc_conn.execute(doc_ins, record)
@@ -393,8 +396,42 @@ class DBInserter:
 
     def insert(self,data):
         """Insert the given data, in bulk"""
-        self.cursor.executemany(self.operation, data)
-        self.conn.commit()
+
+        try:
+            # Typical: This will work as long as there as no duplicates
+            self.cursor.executemany(self.operation, data)
+
+        except Exception, exc:
+
+            # Not so typical: handle integrity constraints (generate warnings)
+            if exc.__class__.__name__ != "IntegrityError":
+                raise
+
+            self.conn.rollback()
+
+            for record in data:
+
+                try:
+                    self.cursor.execute(self.operation, record)
+                    self.conn.commit()
+
+                except Exception, exc:
+
+                    # This record is the culprit: generate a warning
+                    if exc.__class__.__name__ != "IntegrityError":
+                        raise
+
+                    logger.warn( "Integrity error (\"{}\"); data={}".format(exc.message, record) )
+
+        else:
+            # If all goes well, we just need a single commit
+            self.conn.commit()
+
+
+
+
+
+
 
     def close(self):
         """Clean up DBInserter resources"""

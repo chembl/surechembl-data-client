@@ -11,6 +11,8 @@ logging.basicConfig( format='%(asctime)s %(levelname)s %(name)s %(message)s', le
 
 class DataLoaderTests(unittest.TestCase):
 
+    ###### Preparation / bootstrapping ######
+
     def setUp(self):
         self.db = create_engine('sqlite:///:memory:', echo=False)
         self.test_classifications = ("TEST_CLASS1","TEST_CLASS2","TEST_CLASS3","TEST_CLASS4", "TEST_CLASS7")
@@ -125,6 +127,13 @@ class DataLoaderTests(unittest.TestCase):
         self.verify_doc( rows[1], (2,'WO-2013127698-A1',date(2013,9,6),0,47748611) )
         self.verify_doc( rows[2], (3,'WO-2013189394-A2',date(2013,12,27),0,49769540) )
 
+    def test_missing_mandatory_data(self):
+        self.expect_runtime_error('data/biblio_missing_scpn.json', "Document is missing mandatory biblio field (KeyError: 'pubnumber')")
+        self.expect_runtime_error('data/biblio_missing_pubdate.json', "Document is missing mandatory biblio field (KeyError: 'pubdate')")
+        self.expect_runtime_error('data/biblio_missing_familyid.json', "Document is missing mandatory biblio field (KeyError: 'family_id')")
+
+
+
     ###### Chem loading tests ######
 
     def test_write_chem_record(self):
@@ -172,11 +181,11 @@ class DataLoaderTests(unittest.TestCase):
         for expected, actual in zip(exp_rows, rows):
             self.verify_doc_chem( actual, (1, 9724) + expected )
 
+
     def test_many_mappings(self):
         self.load(['data/biblio_typical.json','data/chem_typical.tsv'])
         actual_rows = self.query(['schembl_document_chemistry']).fetchall()
 
-        exp_rows = []
         expected_data = [ (1,9724,0,0,0,1,0,0), (1,23780,0,0,0,11,0,0),(1,23781,0,0,0,11,0,0),(1,25640,0,0,2,4,0,0),
                           (6,61749,0,0,0,1,0,0), (6,1645,11,22,33,44,55,66), (6,15396,0,0,0,4,0,0),
                           (9,48,0,0,0,2,0,0),
@@ -188,21 +197,24 @@ class DataLoaderTests(unittest.TestCase):
                           (18,1645,11,22,33,44,55,66),
                           (20,1646,0,0,0,2,0,0),(20,2156,0,0,3,6,0,0), (20,2157,0,0,3,6,0,0), (20,2761,0,0,0,1,0,0), (20,2799,0,0,0,3,0,0), (20,3001,0,0,0,3,0,0), (20,3046,0,0,0,3,0,0), (20,3233,0,0,0,3,0,0), (20,3234,0,0,0,3,0,0), (20,3689,0,0,0,2,0,0)]
 
-        doc_fields = (DocumentField.TITLE, DocumentField.ABSTRACT, DocumentField.CLAIMS, DocumentField.DESCRIPTION, DocumentField.IMAGES, DocumentField.ATTACHMENTS)
-
-        for expected in expected_data:
-            for doc_field, exp_freq in zip(doc_fields, expected[2:]):
-                exp_rows.append( (expected[0], expected[1], doc_field, exp_freq) )
-
-        for exp_row, actual_row in zip(exp_rows, actual_rows):
-            self.verify_doc_chem( actual_row, exp_row )
+        self.verify_chem_mappings(actual_rows, expected_data)
 
     def test_malformed_files(self):
         self.expect_runtime_error('data/chem_bad_header.tsv', "Malformed header detected in chemical data file")
         self.expect_runtime_error('data/chem_wrong_columns.tsv', "Incorrect number of columns detected in chemical data file")
 
 
+    def test_duplicate_mappings(self):
+        self.load(['data/biblio_typical.json','data/chem_dup_mappings.tsv'])
+        actual_rows = self.query(['schembl_document_chemistry']).fetchall()
 
+        expected_data = [ (20,1646,0,0,0,2,0,0),
+                          (1,9724,0,0,0,1,0,0),
+                          (1,23780,0,0,0,11,0,0),
+                          (1,23781,0,0,0,11,0,0),
+                          (18,1645,11,22,33,44,55,66)]
+
+        self.verify_chem_mappings(actual_rows, expected_data)
 
 
     ###### Support methods #######
@@ -265,6 +277,20 @@ class DataLoaderTests(unittest.TestCase):
         for i,row in enumerate(rows):
             self.verify_class(row, (doc, classes[i], system) )
 
+
+    def verify_chem_mappings(self, actual_rows, expected_data):
+        doc_fields = (DocumentField.TITLE, DocumentField.ABSTRACT, DocumentField.CLAIMS,
+                      DocumentField.DESCRIPTION, DocumentField.IMAGES, DocumentField.ATTACHMENTS)
+
+        exp_rows = []
+        for expected in expected_data:
+            for doc_field, exp_freq in zip(doc_fields, expected[2:]):
+                exp_rows.append((expected[0], expected[1], doc_field, exp_freq))
+
+        self.failUnlessEqual( len(exp_rows), len(actual_rows) )
+
+        for exp_row, actual_row in zip(exp_rows, actual_rows):
+            self.verify_doc_chem(actual_row, exp_row)
 
     def expect_runtime_error(self, file, expected_msg):
         try:
