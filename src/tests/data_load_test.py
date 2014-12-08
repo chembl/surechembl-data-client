@@ -132,7 +132,17 @@ class DataLoaderTests(unittest.TestCase):
         self.expect_runtime_error('data/biblio_missing_pubdate.json', "Document is missing mandatory biblio field (KeyError: 'pubdate')")
         self.expect_runtime_error('data/biblio_missing_familyid.json', "Document is missing mandatory biblio field (KeyError: 'family_id')")
 
+    def test_disable_titles(self):
+        simple_loader = DataLoader( self.db, self.test_classifications, load_titles=False )
+        simple_loader.load_biblio( 'data/biblio_typical.json' )
+        rows = self.query(['schembl_document_title']).fetchall()
+        self.failUnlessEqual(0, len(rows))
 
+    def test_disable_classifications(self):
+        simple_loader = DataLoader( self.db, self.test_classifications, load_classifications=False )
+        simple_loader.load_biblio( 'data/biblio_typical.json' )
+        rows = self.query(['schembl_document_class']).fetchall()
+        self.failUnlessEqual(0, len(rows))
 
     ###### Chem loading tests ######
 

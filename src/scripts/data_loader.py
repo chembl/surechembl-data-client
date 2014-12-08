@@ -3,6 +3,7 @@ import codecs
 import json
 import csv
 import re
+import time
 from datetime import datetime
 from sqlalchemy import MetaData, Table, ForeignKey, Column, Sequence, Integer, Float, String, SmallInteger, Date, Text, select
 
@@ -72,7 +73,11 @@ class DataLoader:
 
     CHEM_RECORD_COLS = len(CHEM_HEADER_ROW)
 
-    def __init__(self, db, relevant_classes=DocumentClass.default_relevant_set, allow_doc_dups=True):
+    def __init__(self, db,
+                 relevant_classes=DocumentClass.default_relevant_set,
+                 allow_doc_dups=True,
+                 load_titles=True,
+                 load_classifications=True):
         """
         Create a new DataLoader.
         :param db: SQL Alchemy database connection.
@@ -83,10 +88,13 @@ class DataLoader:
         logger.info( "Life-sci relevant classes: {}".format(relevant_classes) )
         logger.info( "Duplicate docs allowed? {}".format(allow_doc_dups) )
 
-        self.db = db
-        self.relevant_classes = relevant_classes
+        self.db                   = db
+        self.relevant_classes     = relevant_classes
+        self.allow_document_dups  = allow_doc_dups
+        self.load_titles          = load_titles
+        self.load_classifications = load_classifications
+
         self.relevant_regex = re.compile( '|'.join(relevant_classes) )
-        self.allow_document_dups = allow_doc_dups
 
         self.metadata = MetaData()
         self.doc_id_map = dict()
@@ -171,6 +179,8 @@ class DataLoader:
             new_titles = []
             new_classes = []
 
+            start = time.time()
+
             transaction = sql_alc_conn.begin()
 
             for bib in chunk[1]:
@@ -219,37 +229,48 @@ class DataLoader:
                 doc_id = result.inserted_primary_key[0] # Single PK
                 self.doc_id_map[pubnumber] = doc_id
 
-                try:
-                    title_languages = bib['title_lang']
-                    title_strings = bib['title']
+                if self.load_titles:
 
-                    unique_titles = dict()
-                    for title_lang, title in zip( title_languages, title_strings ):
-                        if title_lang in unique_titles:
-                            if len(title) < 15:
-                                continue
-                            title = min( title, unique_titles[title_lang][2] )
-                        unique_titles[title_lang] = (doc_id, title_lang, title )
-
-                    new_titles.extend( unique_titles.values() )
-
-                except KeyError:
-                    logger.warn("KeyError detected when processing titles for {}; title language or text data may be missing".format(pubnumber))
-
-                for system_key in ('ipc','ecla','ipcr','cpc'):
                     try:
-                        for classif in bib[system_key]:
-                            new_classes.append( (doc_id, classif, DocumentClass.bib_dict[system_key] ) )
+                        title_languages = bib['title_lang']
+                        title_strings = bib['title']
+
+                        unique_titles = dict()
+                        for title_lang, title in zip( title_languages, title_strings ):
+                            if title_lang in unique_titles:
+                                if len(title) < 15:
+                                    continue
+                                title = min( title, unique_titles[title_lang][2] )
+                            unique_titles[title_lang] = (doc_id, title_lang, title )
+
+                        new_titles.extend( unique_titles.values() )
+
                     except KeyError:
-                        logger.warn("Document {} is missing {} classification data".format(pubnumber,system_key))
+                        logger.warn("KeyError detected when processing titles for {}; title language or text data may be missing".format(pubnumber))
+
+                if self.load_classifications:
+
+                    for system_key in ('ipc','ecla','ipcr','cpc'):
+                        try:
+                            for classif in bib[system_key]:
+                                new_classes.append( (doc_id, classif, DocumentClass.bib_dict[system_key] ) )
+                        except KeyError:
+                            logger.warn("Document {} is missing {} classification data".format(pubnumber,system_key))
 
             transaction.commit()
 
+            end = time.time()
+
+            logger.info("Document loading took {} seconds; {} document records loaded".format(end-start, len(chunk[1])))
+
             # Bulk insert titles and classification
-            logger.debug("Performing {} title inserts".format(len(new_titles)) )
-            title_ins.insert(new_titles)
-            logger.debug("Performing {} classification inserts".format(len(new_classes)) )
-            classes_ins.insert(new_classes)
+            if self.load_titles:
+                logger.debug("Performing {} title inserts".format(len(new_titles)) )
+                title_ins.insert(new_titles)
+
+            if self.load_classifications:
+                logger.debug("Performing {} classification inserts".format(len(new_classes)) )
+                classes_ins.insert(new_classes)
 
         # Clean up resources
         title_ins.close()
@@ -398,8 +419,15 @@ class DBInserter:
         """Insert the given data, in bulk"""
 
         try:
+
+            start = time.time()
+
             # Typical: This will work as long as there as no duplicates
             self.cursor.executemany(self.operation, data)
+
+            end = time.time()
+
+            logger.info("Operation [{}] took {} seconds; {} records loaded".format(self.operation, end-start, len(data)))
 
         except Exception, exc:
 
