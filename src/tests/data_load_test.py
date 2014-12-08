@@ -47,6 +47,15 @@ class DataLoaderTests(unittest.TestCase):
         self.failUnlessEqual( 25, len( rows ) )
         self.verify_doc( rows[0], (1,'WO-2013127697-A1',date(2013,9,6),0,47747634) )
 
+    def test_unexpected_disallowed_duplicate(self):
+        try:
+            self.load(['data/biblio_single_row.json'])
+            DataLoader( self.db, self.test_classifications, allow_doc_dups=False ).load_biblio('data/biblio_typical.json')
+            self.fail("Exception was expected")
+        except RuntimeError,exc:
+            self.failUnlessEqual("An Integrity error was detected when inserting document WO-2013127697-A1. This "\
+                                 "is likely to indicate a duplicate document - which are not allowed", exc.message)
+
     def test_sequence_definitions(self):
         mdata = self.loader.db_metadata()
         self.failUnlessEqual( 'schembl_document_id', mdata.tables['schembl_document'].c.id.default.name )

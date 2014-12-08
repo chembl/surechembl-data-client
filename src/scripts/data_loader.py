@@ -179,9 +179,9 @@ class DataLoader:
             new_titles = []
             new_classes = []
 
-            start = time.time()
-
             transaction = sql_alc_conn.begin()
+
+            doc_insert_time = 0
 
             for bib in chunk[1]:
 
@@ -195,15 +195,7 @@ class DataLoader:
 
                 # Check if this document is known, or exists...
                 if self.allow_document_dups:
-
                     if pubnumber in self.doc_id_map:
-                        continue
-
-                    sel = select([self.docs.c.id]).where(self.docs.c.scpn == pubnumber)
-                    result = sql_alc_conn.execute(sel)
-                    row = result.fetchone()
-                    if row:
-                        self.doc_id_map[pubnumber] = row[0]
                         continue
 
                 # Work out of the document is relevant to life science
@@ -223,7 +215,29 @@ class DataLoader:
                     'family_id'         : family_id,
                     'life_sci_relevant' : int(life_sci_relevant) }
 
-                result = sql_alc_conn.execute(doc_ins, record)
+                try:
+
+                    start = time.time()
+                    result = sql_alc_conn.execute(doc_ins, record)
+                    end = time.time()
+
+                    doc_insert_time += (end-start)
+
+                except Exception, exc:
+
+                    if exc.__class__.__name__ != "IntegrityError":
+                        raise
+
+                    logger.warn( "Integrity error [{}] detected on document insert; likely duplicate".format(exc.message) )
+                    logger.warn( "Integrity error record: {}".format(record) )
+
+                    # TODO better duplicate handling for supplementary data
+                    if not self.allow_document_dups:
+                        raise RuntimeError(
+                            "An Integrity error was detected when inserting document {}. This "\
+                            "is likely to indicate a duplicate document - which are not allowed".format(pubnumber))
+
+                    continue
 
                 # TODO correct transaction / rollback handling
                 doc_id = result.inserted_primary_key[0] # Single PK
@@ -259,9 +273,7 @@ class DataLoader:
 
             transaction.commit()
 
-            end = time.time()
-
-            logger.info("Document loading took {} seconds; {} document records loaded".format(end-start, len(chunk[1])))
+            logger.info("Document loading took {} seconds; {} document records loaded".format(doc_insert_time, len(chunk[1])))
 
             # Bulk insert titles and classification
             if self.load_titles:
@@ -454,10 +466,6 @@ class DBInserter:
         else:
             # If all goes well, we just need a single commit
             self.conn.commit()
-
-
-
-
 
 
 
