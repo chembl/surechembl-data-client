@@ -91,8 +91,7 @@ def main():
 
     except cx_Oracle.DatabaseError, exc:
         # Specialized display handling for Oracle exceptions
-        error, = exc.args
-        logger.error( "Oracle exception detected. Code={}, Message={}".format( error.code, error.message) )
+        logger.error( "Oracle exception detected: {}".format( exc ) )
         raise
 
 def get_target_files(args, reader):
