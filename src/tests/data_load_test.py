@@ -137,9 +137,10 @@ class DataLoaderTests(unittest.TestCase):
         self.verify_doc( rows[2], (3,'WO-2013189394-A2',date(2013,12,27),0,49769540) )
 
     def test_missing_mandatory_data(self):
-        self.expect_runtime_error('data/biblio_missing_scpn.json', "Document is missing mandatory biblio field (KeyError: 'pubnumber')")
-        self.expect_runtime_error('data/biblio_missing_pubdate.json', "Document is missing mandatory biblio field (KeyError: 'pubdate')")
+        self.expect_runtime_error('data/biblio_missing_scpn.json',     "Document is missing mandatory biblio field (KeyError: 'pubnumber')")
+        self.expect_runtime_error('data/biblio_missing_pubdate.json',  "Document is missing mandatory biblio field (KeyError: 'pubdate')")
         self.expect_runtime_error('data/biblio_missing_familyid.json', "Document is missing mandatory biblio field (KeyError: 'family_id')")
+        self.expect_runtime_error('data/biblio_empty_scpn.json',       "Document publication number field is empty")
 
     def test_disable_titles(self):
         simple_loader = DataLoader( self.db, self.test_classifications, load_titles=False )

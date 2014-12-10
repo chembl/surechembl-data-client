@@ -144,6 +144,15 @@ class DataLoader:
                      Column('field',            SmallInteger, primary_key=True),
                      Column('frequency',        Integer))
 
+        # Define types for chemical structure inserts
+        if ("cx_oracle" in str(db.dialect)):
+            logger.info( "cx_oracle dialect detected, setting CLOB input types for structure INSERT statements" )
+            import cx_Oracle
+            self.chem_struc_types = (None, cx_Oracle.CLOB, cx_Oracle.CLOB, None)
+        else:
+            self.chem_struc_types = None
+
+
     def db_metadata(self):
         """Accessor for the SQL Alchemy database metadata"""
         return self.metadata
@@ -176,6 +185,7 @@ class DataLoader:
 
             logger.debug( "Processing biblio data to index {}".format(chunk[0]) )
 
+            new_doc_mappings = dict()
             new_titles = []
             new_classes = []
 
@@ -185,7 +195,7 @@ class DataLoader:
 
             for bib in chunk[1]:
 
-                # TODO empty values rejected
+                # Retrieve and parse the core document biblio fields
                 try:
                     pubnumber = bib_scalar(bib, 'pubnumber')
                     pubdate   = datetime.strptime( bib_scalar( bib,'pubdate'), '%Y%m%d')
@@ -193,7 +203,10 @@ class DataLoader:
                 except KeyError, exc:
                     raise RuntimeError("Document is missing mandatory biblio field (KeyError: {})".format(exc))
 
-                # Check if this document is known, or exists...
+                if len(pubnumber) == 0:
+                    raise RuntimeError("Document publication number field is empty")
+
+                # Check if this document has already been processed
                 if self.allow_document_dups:
                     if pubnumber in self.doc_id_map:
                         continue
@@ -239,9 +252,8 @@ class DataLoader:
 
                     continue
 
-                # TODO correct transaction / rollback handling
                 doc_id = result.inserted_primary_key[0] # Single PK
-                self.doc_id_map[pubnumber] = doc_id
+                new_doc_mappings[pubnumber] = doc_id
 
                 if self.load_titles:
 
@@ -271,7 +283,9 @@ class DataLoader:
                         except KeyError:
                             logger.warn("Document {} is missing {} classification data".format(pubnumber,system_key))
 
+            # Commit the new document records, then update the official mapping with the new IDs
             transaction.commit()
+            self.doc_id_map.update(new_doc_mappings)
 
             logger.info("Document loading took {} seconds; {} document records loaded".format(doc_insert_time, len(chunk[1])))
 
@@ -311,7 +325,7 @@ class DataLoader:
         db_api_conn = sql_alc_conn.connection
 
         chem_ins = DBInserter(db_api_conn, 'insert into schembl_chemical (id, mol_weight, logp, med_chem_alert, is_relevant, donor_count, acceptor_count, ring_count, rot_bond_count, corpus_count) values (:1, :2, :3, :4, :5, :6, :7, :8, :9, :10)')
-        chem_struc_ins = DBInserter(db_api_conn, 'insert into schembl_chemical_structure (schembl_chem_id, smiles, std_inchi, std_inchikey) values (:1, :2, :3, :4)')
+        chem_struc_ins = DBInserter(db_api_conn, 'insert into schembl_chemical_structure (schembl_chem_id, smiles, std_inchi, std_inchikey) values (:1, :2, :3, :4)', self.chem_struc_types)
         chem_map_ins = DBInserter(db_api_conn, 'insert into schembl_document_chemistry (schembl_doc_id, schembl_chem_id, field, frequency) values (:1, :2, :3, :4)')
 
         chunk = []
@@ -386,6 +400,10 @@ class DataLoader:
             if len(row) != self.CHEM_RECORD_COLS:
                 raise RuntimeError("Incorrect number of columns detected in chemical data file")
 
+            if row[0] not in self.doc_id_map:
+                logger.warn("Document ID not found for scpn [{}]; skipping record".format(row[0]))
+                continue
+
             doc_id  = self.doc_id_map[ row[0] ]
             chem_id = int(row[1])
 
@@ -421,11 +439,14 @@ class DataLoader:
 class DBInserter:
     """Convenience wrapper for DB-API functionality"""
 
-    def __init__(self, db_api_conn, operation):
+    def __init__(self, db_api_conn, operation, types=None):
         """Initialize a DBInserter, with a given connection and insert operation"""
         self.conn = db_api_conn
         self.cursor = db_api_conn.cursor()
         self.operation = operation
+        if types is not None:
+            self.cursor.setinputsizes(*types)
+
 
     def insert(self,data):
         """Insert the given data, in bulk"""
@@ -457,8 +478,10 @@ class DBInserter:
 
                 except Exception, exc:
 
-                    # This record is the culprit: generate a warning
+                    # This record is the culprit
                     if exc.__class__.__name__ != "IntegrityError":
+                        logger.error("Exception [{}] occurred inserting record {}".format(exc.message, record))
+                        logger.error("Operation was: {}".format(self.operation))
                         raise
 
                     logger.warn( "Integrity error (\"{}\"); data={}".format(exc.message, record) )
