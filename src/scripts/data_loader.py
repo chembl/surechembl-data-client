@@ -42,7 +42,13 @@ class DataLoader:
     """
     Provides methods for loading SureChEMBL bibliographic and chemical data into a local database.
 
-    Imported Chemical TSV files are expected to have this structure:
+    Typically, input strings are cast to required types; so expect a ValueError if any value is malformed or missing.
+
+    Also some string values are simply written to the DB as-is, so they could be blank. This assumes that a partial
+    record is better than no record at all. This does not apply for identifying information e.g. publication numbers.
+
+    The imported Chemical TSV files are expected to have this structure:
+
     # 0  SCPN
     # 1  SureChEMBL ID
     # 2  SMILES
@@ -100,9 +106,10 @@ class DataLoader:
         self.doc_id_map = dict()
         self.existing_chemicals = set()
 
+        # This SQL Alchemy schema is a very useful programmatic tool for manipulating and querying the SureChEMBL data.
+        # It's mostly used for testing, except for document insertion where 'inserted_primary_key' is used to
+        # avoid costly querying of document IDs
 
-        # TODO field sizes asserted - all tables / fields
-        # TODO FK and Nullable tested - all tables
         self.docs = Table('schembl_document', self.metadata,
                      Column('id',                Integer,       Sequence('schembl_document_id'), primary_key=True),
                      Column('scpn',              String(50),    unique=True),
@@ -146,7 +153,8 @@ class DataLoader:
 
         # Define types for chemical structure inserts
         if ("cx_oracle" in str(db.dialect)):
-            logger.info( "cx_oracle dialect detected, setting CLOB input types for structure INSERT statements" )
+            logger.info( "cx_oracle dialect detected, setting CLOB input types for structure INSERT statements."\
+                         " (required for long strings inserted as part of executemany operations)" )
             import cx_Oracle
             self.chem_struc_types = (None, cx_Oracle.CLOB, cx_Oracle.CLOB, None)
         else:
@@ -219,7 +227,8 @@ class DataLoader:
                             if life_sci_relevant == 0 and self.relevant_regex.match(classif):
                                 life_sci_relevant = 1
                     except KeyError:
-                        logger.warn("Document {} is missing {} classification data".format(pubnumber,system_key))
+                        # Skip the warning - classifications are processed again below
+                        pass
 
                 # Create a new record for the document
                 record = {
@@ -245,6 +254,7 @@ class DataLoader:
                     logger.warn( "Integrity error record: {}".format(record) )
 
                     # TODO better duplicate handling for supplementary data
+
                     if not self.allow_document_dups:
                         raise RuntimeError(
                             "An Integrity error was detected when inserting document {}. This "\
@@ -372,6 +382,7 @@ class DataLoader:
                 continue
             unknown_chem_ids.add( chem_id )
 
+        # TODO optimize query
         if (len(unknown_chem_ids) > 0):
 
             # Search the DB to see if those chemicals are known
@@ -393,6 +404,8 @@ class DataLoader:
         new_chem_structs = []
         new_mappings = []
 
+        new_chem_ids = set()
+
         logger.debug( "Processing chemical mappings / building insert list" )
 
         for i, row in enumerate(rows):
@@ -410,12 +423,11 @@ class DataLoader:
             # Add the chemical - if it's new
             if chem_id not in self.existing_chemicals:
 
-                # # TODO handle incorrect column types
                 new_chems.append( (chem_id, float(row[6]), float(row[10]), int(row[8]), int(row[9]), int(row[11]), int(row[12]), int(row[13]), int(row[14]), int(row[7])) )
+
                 new_chem_structs.append( ( chem_id, row[2], row[3], row[4]) )
 
-                # TODO handle rollback of full chemical ID set
-                self.existing_chemicals.add(chem_id)
+                new_chem_ids.add(chem_id)
 
             # Add the document / chemical mappings
             new_mappings.append( (doc_id, chem_id, DocumentField.TITLE,       int(row[15]) ) )
@@ -428,6 +440,8 @@ class DataLoader:
         # Bulk insertions
         logger.debug("Performing {} chemical inserts".format(len(new_chems)) )
         chem_ins.insert(new_chems)
+
+        self.existing_chemicals.update( new_chem_ids )
 
         logger.debug("Performing {} chemical structure inserts".format(len(new_chem_structs)) )
         chem_struc_ins.insert( new_chem_structs)

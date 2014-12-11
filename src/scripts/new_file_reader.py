@@ -183,7 +183,8 @@ class NewFileReader:
 
             self.ftp.cwd( path )
             self.ftp.retrbinary("RETR " + file, fhandle.write)
-            # TODO resilient download / error checking / retry
+
+            # TODO implement resilient download / error checking / retry
 
             fhandle.close()
 

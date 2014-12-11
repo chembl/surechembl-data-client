@@ -31,8 +31,18 @@ The following environment variables are required to use cx_oracle from python:
 ## Running the tests
 
 
+# Schema installation
 
 
+
+# Using the Scripts
+
+## Warnings
+
+2014-12-10 12:55:24,802 WARNING scripts.data_loader Document ID not found for scpn [EP-1365761-B1]; skipping record
+Document {} is missing {} classification data
+Integrity error [{}] detected on document insert; likely duplicate
+KeyError detected when processing titles for {}; title language or text data may be missing
 
 
 
