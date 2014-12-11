@@ -44,6 +44,7 @@ def main():
     parser.add_argument('--all',         help='Download all files, or just new files? Front file only', action="store_true")
     parser.add_argument('--skip_titles', help='Ignore titles when loading document metadata',           action="store_true")
     parser.add_argument('--skip_classes',help='Ignore classifications when loading document metadata',  action="store_true")
+    parser.add_argument('--all_dup_doc_warnings',help='Display all duplicate document warnings',  action="store_true")
 
     args = parser.parse_args()
 
@@ -83,6 +84,7 @@ def main():
         loader = DataLoader(db,
                     load_titles=not args.skip_titles,
                     load_classifications=not args.skip_classes,
+                    all_dup_doc_warnings=args.all_dup_doc_warnings,
                     allow_doc_dups=True)
 
         for bib_file in filter( lambda f: f.endswith("biblio.json"), downloads):

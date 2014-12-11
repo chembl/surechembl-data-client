@@ -82,6 +82,7 @@ class DataLoader:
     def __init__(self, db,
                  relevant_classes=DocumentClass.default_relevant_set,
                  allow_doc_dups=True,
+                 all_dup_doc_warnings=True,
                  load_titles=True,
                  load_classifications=True):
         """
@@ -97,6 +98,7 @@ class DataLoader:
         self.db                   = db
         self.relevant_classes     = relevant_classes
         self.allow_document_dups  = allow_doc_dups
+        self.all_dup_doc_warnings = all_dup_doc_warnings
         self.load_titles          = load_titles
         self.load_classifications = load_classifications
 
@@ -196,6 +198,7 @@ class DataLoader:
             new_doc_mappings = dict()
             new_titles = []
             new_classes = []
+            dup_doc_count = 0
 
             transaction = sql_alc_conn.begin()
 
@@ -250,15 +253,16 @@ class DataLoader:
                     if exc.__class__.__name__ != "IntegrityError":
                         raise
 
-                    logger.warn( "Integrity error [{}] detected on document insert; likely duplicate".format(exc.message) )
-                    logger.warn( "Integrity error record: {}".format(record) )
-
-                    # TODO better duplicate handling for supplementary data
-
                     if not self.allow_document_dups:
                         raise RuntimeError(
                             "An Integrity error was detected when inserting document {}. This "\
                             "is likely to indicate a duplicate document - which are not allowed".format(pubnumber))
+
+                    dup_doc_count += 1
+
+                    if self.all_dup_doc_warnings:
+                        logger.warn( "Integrity error [{}] detected on document insert; likely duplicate".format(exc.message) )
+                        logger.warn( "Integrity error record: {}".format(record) )
 
                     continue
 
@@ -297,7 +301,9 @@ class DataLoader:
             transaction.commit()
             self.doc_id_map.update(new_doc_mappings)
 
-            logger.info("Document loading took {} seconds; {} document records loaded".format(doc_insert_time, len(chunk[1])))
+            logger.info("Document loading took {} seconds; {} document records loaded, "\
+                        "with {} Integrity errors (which indicate probable duplicates)"
+                        .format(doc_insert_time, len(chunk[1]), dup_doc_count))
 
             # Bulk insert titles and classification
             if self.load_titles:
@@ -421,12 +427,11 @@ class DataLoader:
             chem_id = int(row[1])
 
             # Add the chemical - if it's new
-            if chem_id not in self.existing_chemicals:
+            if chem_id not in self.existing_chemicals and\
+               chem_id not in new_chem_ids:
 
                 new_chems.append( (chem_id, float(row[6]), float(row[10]), int(row[8]), int(row[9]), int(row[11]), int(row[12]), int(row[13]), int(row[14]), int(row[7])) )
-
                 new_chem_structs.append( ( chem_id, row[2], row[3], row[4]) )
-
                 new_chem_ids.add(chem_id)
 
             # Add the document / chemical mappings

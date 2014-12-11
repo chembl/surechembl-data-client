@@ -37,6 +37,21 @@ The following environment variables are required to use cx_oracle from python:
 
 # Using the Scripts
 
+## Loading the front file
+Duplicate document count will be shown, but no details (expect these with for supplementary data files, where the biblio is reloaded).
+
+## Loading all data for a given day
+
+## Loading the backfile
+--show all warnings (there shouldn't be duplicate docs)
+
+
+## Reloading data
+Just rerun the command.
+
+
+
+
 ## Warnings
 
 2014-12-10 12:55:24,802 WARNING scripts.data_loader Document ID not found for scpn [EP-1365761-B1]; skipping record
