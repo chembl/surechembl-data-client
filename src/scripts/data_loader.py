@@ -171,6 +171,7 @@ class DataLoader:
         """Accessor for the list of classifications to treat as relevant"""
         return self.relevant_classes
 
+
     def load_biblio(self, file_name, chunksize=1000):
         """
         Load bibliographic data into the database. Identifiers for new documents will be retained
@@ -206,32 +207,14 @@ class DataLoader:
 
             for bib in chunk[1]:
 
-                # Retrieve and parse the core document biblio fields
-                try:
-                    pubnumber = bib_scalar(bib, 'pubnumber')
-                    pubdate   = datetime.strptime( bib_scalar( bib,'pubdate'), '%Y%m%d')
-                    family_id = bib_scalar(bib, 'family_id')
-                except KeyError, exc:
-                    raise RuntimeError("Document is missing mandatory biblio field (KeyError: {})".format(exc))
-
-                if len(pubnumber) == 0:
-                    raise RuntimeError("Document publication number field is empty")
+                family_id, pubdate, pubnumber = self._extract_core_biblio(bib)
 
                 # Check if this document has already been processed
                 if self.allow_document_dups:
                     if pubnumber in self.doc_id_map:
                         continue
 
-                # Work out of the document is relevant to life science
-                life_sci_relevant = 0
-                for system_key in ('ipc','ecla','ipcr','cpc'):
-                    try:
-                        for classif in bib[system_key]:
-                            if life_sci_relevant == 0 and self.relevant_regex.match(classif):
-                                life_sci_relevant = 1
-                    except KeyError:
-                        # Skip the warning - classifications are processed again below
-                        pass
+                life_sci_relevant = self._extract_life_sci_relevance(bib)
 
                 # Create a new record for the document
                 record = {
@@ -269,33 +252,7 @@ class DataLoader:
                 doc_id = result.inserted_primary_key[0] # Single PK
                 new_doc_mappings[pubnumber] = doc_id
 
-                if self.load_titles:
-
-                    try:
-                        title_languages = bib['title_lang']
-                        title_strings = bib['title']
-
-                        unique_titles = dict()
-                        for title_lang, title in zip( title_languages, title_strings ):
-                            if title_lang in unique_titles:
-                                if len(title) < 15:
-                                    continue
-                                title = min( title, unique_titles[title_lang][2] )
-                            unique_titles[title_lang] = (doc_id, title_lang, title )
-
-                        new_titles.extend( unique_titles.values() )
-
-                    except KeyError:
-                        logger.warn("KeyError detected when processing titles for {}; title language or text data may be missing".format(pubnumber))
-
-                if self.load_classifications:
-
-                    for system_key in ('ipc','ecla','ipcr','cpc'):
-                        try:
-                            for classif in bib[system_key]:
-                                new_classes.append( (doc_id, classif, DocumentClass.bib_dict[system_key] ) )
-                        except KeyError:
-                            logger.warn("Document {} is missing {} classification data".format(pubnumber,system_key))
+                self._extract_detailed_biblio(bib, doc_id, new_classes, new_titles, pubnumber)
 
             # Commit the new document records, then update the official mapping with the new IDs
             transaction.commit()
@@ -305,7 +262,16 @@ class DataLoader:
                         "with {} Integrity errors (which indicate probable duplicates)"
                         .format(doc_insert_time, len(chunk[1]), len(dup_docs)))
 
-            # ... but now we need to read in IDs for duplicate documents
+            # Bulk insert titles and classification
+            if self.load_titles:
+                logger.debug("Performing {} title inserts".format(len(new_titles)) )
+                title_ins.insert(new_titles)
+
+            if self.load_classifications:
+                logger.debug("Performing {} classification inserts".format(len(new_classes)) )
+                classes_ins.insert(new_classes)
+
+            # ... we'll also need to find the IDs for any duplicate docs, for chemistry insertion
             if (len(dup_docs) > 0):
 
                 logger.debug( "Retrieving primary key IDs for {} existing publication numbers".format(len(dup_docs)) )
@@ -322,14 +288,6 @@ class DataLoader:
 
                 logger.debug( "Known documents IDs now at: {}".format(len(self.doc_id_map)) )
 
-            # Bulk insert titles and classification
-            if self.load_titles:
-                logger.debug("Performing {} title inserts".format(len(new_titles)) )
-                title_ins.insert(new_titles)
-
-            if self.load_classifications:
-                logger.debug("Performing {} classification inserts".format(len(new_classes)) )
-                classes_ins.insert(new_classes)
 
         # Clean up resources
         title_ins.close()
@@ -338,6 +296,64 @@ class DataLoader:
         input_file.close()
 
         logger.info("Biblio import completed" )
+
+    def _extract_core_biblio(self, bib):
+        """Retrieve and parse the core document biblio fields"""
+        try:
+            pubnumber = bib_scalar(bib, 'pubnumber')
+            pubdate = datetime.strptime(bib_scalar(bib, 'pubdate'), '%Y%m%d')
+            family_id = bib_scalar(bib, 'family_id')
+        except KeyError, exc:
+            raise RuntimeError("Document is missing mandatory biblio field (KeyError: {})".format(exc))
+        if len(pubnumber) == 0:
+            raise RuntimeError("Document publication number field is empty")
+
+        return family_id, pubdate, pubnumber
+
+    def _extract_life_sci_relevance(self, bib):
+        """Work out of the document is relevant to life science"""
+        life_sci_relevant = 0
+        for system_key in ('ipc', 'ecla', 'ipcr', 'cpc'):
+            try:
+                for classif in bib[system_key]:
+                    if life_sci_relevant == 0 and self.relevant_regex.match(classif):
+                        life_sci_relevant = 1
+            except KeyError:
+                # Skip the warning - classifications are processed again below
+                pass
+
+        return life_sci_relevant
+
+    def _extract_detailed_biblio(self, bib, doc_id, new_classes, new_titles, pubnumber):
+        """Extract titles and classifications"""
+        if self.load_titles:
+
+            try:
+                title_languages = bib['title_lang']
+                title_strings = bib['title']
+
+                unique_titles = dict()
+                for title_lang, title in zip(title_languages, title_strings):
+                    if title_lang in unique_titles:
+                        if len(title) < 15:
+                            continue
+                        title = min(title, unique_titles[title_lang][2])
+                    unique_titles[title_lang] = (doc_id, title_lang, title )
+
+                new_titles.extend(unique_titles.values())
+
+            except KeyError:
+                logger.warn(
+                    "KeyError detected when processing titles for {}; title language or text data may be missing".format(
+                        pubnumber))
+        if self.load_classifications:
+
+            for system_key in ('ipc', 'ecla', 'ipcr', 'cpc'):
+                try:
+                    for classif in bib[system_key]:
+                        new_classes.append((doc_id, classif, DocumentClass.bib_dict[system_key] ))
+                except KeyError:
+                    logger.warn("Document {} is missing {} classification data".format(pubnumber, system_key))
 
 
     def load_chems(self, file_name, chunksize=1000):

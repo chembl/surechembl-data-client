@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, select
 
 from src.scripts.data_loader import DataLoader, DocumentClass, DocumentField
 
-logging.basicConfig( format='%(asctime)s %(levelname)s %(name)s %(message)s', level=logging.DEBUG)
+logging.basicConfig( format='%(asctime)s %(levelname)s %(name)s %(message)s', level=logging.ERROR)
 
 class DataLoaderTests(unittest.TestCase):
 
