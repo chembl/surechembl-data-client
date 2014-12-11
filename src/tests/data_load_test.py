@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, select
 
 from src.scripts.data_loader import DataLoader, DocumentClass, DocumentField
 
-logging.basicConfig( format='%(asctime)s %(levelname)s %(name)s %(message)s', level=logging.ERROR)
+logging.basicConfig( format='%(asctime)s %(levelname)s %(name)s %(message)s', level=logging.DEBUG)
 
 class DataLoaderTests(unittest.TestCase):
 
@@ -235,6 +235,17 @@ class DataLoaderTests(unittest.TestCase):
                           (18,1645,11,22,33,44,55,66)]
 
         self.verify_chem_mappings(actual_rows, expected_data)
+
+
+    ###### Various edge cases ######
+    def test_chems_loaded_for_existing_docs(self):
+        extra_loader = DataLoader( self.db, self.test_classifications )
+        extra_loader.load_biblio( 'data/biblio_typical.json' )
+        self.load(['data/biblio_typical.json', 'data/chem_single_row_alternative.tsv'])
+
+        rows = self.query(['schembl_document_chemistry']).fetchall()
+        self.verify_chem_mappings(rows, [ (15,7676,88,77,66,55,44,33) ])
+
 
 
     ###### Support methods #######

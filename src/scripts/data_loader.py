@@ -198,7 +198,7 @@ class DataLoader:
             new_doc_mappings = dict()
             new_titles = []
             new_classes = []
-            dup_doc_count = 0
+            dup_docs = set()
 
             transaction = sql_alc_conn.begin()
 
@@ -258,7 +258,7 @@ class DataLoader:
                             "An Integrity error was detected when inserting document {}. This "\
                             "is likely to indicate a duplicate document - which are not allowed".format(pubnumber))
 
-                    dup_doc_count += 1
+                    dup_docs.add(pubnumber)
 
                     if self.all_dup_doc_warnings:
                         logger.warn( "Integrity error [{}] detected on document insert; likely duplicate".format(exc.message) )
@@ -303,7 +303,24 @@ class DataLoader:
 
             logger.info("Document loading took {} seconds; {} document records loaded, "\
                         "with {} Integrity errors (which indicate probable duplicates)"
-                        .format(doc_insert_time, len(chunk[1]), dup_doc_count))
+                        .format(doc_insert_time, len(chunk[1]), len(dup_docs)))
+
+            # ... but now we need to read in IDs for duplicate documents
+            if (len(dup_docs) > 0):
+
+                logger.debug( "Retrieving primary key IDs for {} existing publication numbers".format(len(dup_docs)) )
+                sel = select(
+                        [self.docs.c.scpn, self.docs.c.id])\
+                      .where(
+                        (self.docs.c.scpn.in_(dup_docs) ))
+
+                # Add results to the pubnumber -> doc ID map
+                result = sql_alc_conn.execute(sel)
+                found_docs = result.fetchall()
+                for found_doc in found_docs:
+                    self.doc_id_map[found_doc[0]] = found_doc[1]
+
+                logger.debug( "Known documents IDs now at: {}".format(len(self.doc_id_map)) )
 
             # Bulk insert titles and classification
             if self.load_titles:
@@ -326,7 +343,7 @@ class DataLoader:
     def load_chems(self, file_name, chunksize=1000):
         """
         Load document chemistry data into the database. Assumes that document IDs for new document-chemistry
-        have been made available as part of a previous processing step (by load_biblio)
+        have been made available as part of a previous processing step (by load_biblio)!
         :param file_name: The SureChEMBL doc-chemistry data file to load, in TSV format
         :param chunksize: Chunk size; affected processing of input records along with bulk insertion.
         """
@@ -388,10 +405,9 @@ class DataLoader:
                 continue
             unknown_chem_ids.add( chem_id )
 
-        # TODO optimize query
+        # Search the DB to see if any of those chemicals are known
         if (len(unknown_chem_ids) > 0):
 
-            # Search the DB to see if those chemicals are known
             logger.debug( "Searching DB for {} unknown chemical IDs".format(len(unknown_chem_ids)) )
             sel = select(
                     [self.chemicals.c.id])\
@@ -406,6 +422,7 @@ class DataLoader:
 
             logger.debug( "Known chemical IDs now at: {}".format(len(self.existing_chemicals)) )
 
+        # Now process all input rows, generating new data records where needed
         new_chems = []
         new_chem_structs = []
         new_mappings = []
