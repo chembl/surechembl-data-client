@@ -38,11 +38,11 @@ class FTPTests(unittest.TestCase):
     def test_create_new_file_reader(self):
         self.failUnless( isinstance(self.reader, NewFileReader) )
 
-    def test_change_working_dir(self):
+    def test_find_new_change_working_dir(self):
         self.reader.get_frontfile_new( datetime.date(2013,11,4) )
         self.ftp.cwd.assert_called_with( "/data/external/frontfile/2013/11/04" )
 
-    def test_get_new_files(self):
+    def test_find_new_read_files(self):
 
         files = self.reader.get_frontfile_new( datetime.date(2012,10,3) )
 
@@ -60,7 +60,7 @@ class FTPTests(unittest.TestCase):
              ])
 
 
-    def test_get_files_by_timeperiod(self):
+    def test_find_files_by_timeperiod(self):
         self.verify_file_retrieval(lambda : self.reader.get_frontfile_all(datetime.date(2013, 11, 4)), "/data/external/frontfile/2013/11/04")
         self.verify_file_retrieval(lambda : self.reader.get_backfile_year(datetime.date(2011, 1, 1)), "/data/external/backfile/2011")
 
@@ -74,7 +74,8 @@ class FTPTests(unittest.TestCase):
         self.ftp.nlst.assert_called_with()
         self.failUnlessEqual( exp_file_list, actual_files )
 
-    def test_get_download_list(self):
+
+    def test_select_downloads(self):
         self.verify_dl_list(
             [],
             [])
@@ -97,7 +98,7 @@ class FTPTests(unittest.TestCase):
         self.failUnlessEqual(expected, actual)
 
 
-    def test_get_files(self):
+    def test_read_files(self):
         self.reader.read_files(
             ['/path/one/bib.dat','/path/two/chem.dat'], '/tmp/schembl_ftp_test')
 
@@ -114,6 +115,28 @@ class FTPTests(unittest.TestCase):
     def verify_dl_content(self, file_path, expected):
         content = open(file_path).read()
         self.failUnlessEqual(content, expected)
+
+
+    def test_bad_dates(self):
+        self.handle_missing_date( lambda : self.reader.get_frontfile_new( datetime.date(2953,11,4) ), "/data/external/frontfile/2953/11/04")
+        self.handle_missing_date( lambda : self.reader.get_frontfile_all( datetime.date(2053,10,1) ), "/data/external/frontfile/2053/10/01")
+        self.handle_missing_date( lambda : self.reader.get_backfile_year( datetime.date(2121,01,01) ), "/data/external/backfile/2121")
+
+    def handle_missing_date(self, f, dir_str):
+        self.ftp.cwd.side_effect = ftplib.error_perm("550 Failed to change directory.")
+        try:
+            f()
+            self.fail("Exception expected")
+        except ValueError, e:
+            self.assertEqual("No data found for given date. Target folder: [{}]".format(dir_str), e.message)
+
+    def test_no_new_files(self):
+        try:
+            self.ftp.retrbinary.side_effect = ftplib.error_perm("550 Failed to open file.")
+            self.reader.get_frontfile_new( datetime.date(2113,11,4) )
+            self.fail("Exception expected")
+        except ValueError, e:
+            self.assertEqual("No new files entry was found for [2113-11-04]", e.message)
 
 
 def main():

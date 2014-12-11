@@ -2,6 +2,7 @@
 import os
 import re
 import logging
+import ftplib
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +33,13 @@ class NewFileReader:
         self.supp_regex = re.compile(self.SUPP_CHEM_REGEX)
 
 
+
     def get_frontfile_new(self, from_date):
         """
         Read a list of new files from the FTP server, for the given date.
         :param from_date: The date to query
         :return: List of absolute file paths on the FTP server.
+        :raise ValueError if no data directory exists for the given date
         """
 
         logger.info( "Identifying new files for {}".format(from_date) )
@@ -46,15 +49,18 @@ class NewFileReader:
             from_date.month,
             from_date.day)
 
-        # TODO gracefully handle missing directory
-        self.ftp.cwd( new_files_loc )
+        self._change_to_data_dir(new_files_loc)
 
         data = []
         def handle_binary(more_data):
             data.append(more_data)
 
-        # TODO gracefully handle missing file
-        self.ftp.retrbinary("RETR " + self.NEW_FILES_NAME, handle_binary)
+        try:
+            self.ftp.retrbinary("RETR " + self.NEW_FILES_NAME, handle_binary)
+        except ftplib.error_perm, exc:
+            if exc.message.startswith("550"):
+                raise ValueError("No new files entry was found for [{}]".format(from_date))
+            raise
 
         content = "".join(data)
         rel_file_list = content.split('\n')
@@ -66,6 +72,12 @@ class NewFileReader:
 
 
     def get_frontfile_all(self, date):
+        """
+        Read a list of all files from the FTP server, for the given date.
+        :param from_date: The date to query
+        :return: List of absolute file paths on the FTP server.
+        :raise ValueError if no data directory exists for the given date
+        """
 
         logger.info( "Identifying files for day {}".format(date) )
 
@@ -74,7 +86,8 @@ class NewFileReader:
             date.month,
             date.day)
 
-        self.ftp.cwd( day_files_path )
+        self._change_to_data_dir(day_files_path)
+
         ftp_file_list = self.ftp.nlst()
         abs_file_list = map( lambda f: "{0}/{1}".format(day_files_path, f), ftp_file_list)
 
@@ -87,6 +100,7 @@ class NewFileReader:
         Read a list of files from the FTP server, for the given backfile year.
         :param date_obj: Date object, only the year is used.
         :return: List of absolute file paths on the FTP server.
+        :raise ValueError if no data directory exists for the given date
         """
 
         year = date_obj.year
@@ -94,13 +108,26 @@ class NewFileReader:
 
         year_path = self.YEAR_FILES_LOC.format(year)
 
-        self.ftp.cwd( year_path )
+        self._change_to_data_dir(year_path)
+
         ftp_file_list = self.ftp.nlst()
         abs_file_list = map( lambda f: "{0}/{1}".format(year_path, f), ftp_file_list)
 
         logger.info( "Discovered {} files".format(len(abs_file_list)) )
 
         return abs_file_list
+
+
+    def _change_to_data_dir(self, expected_data_dir):
+        """A wrapper for changing directory, to raise an appropriate exception when no data found"""
+        try:
+            self.ftp.cwd(expected_data_dir)
+        except ftplib.error_perm, exc:
+            if exc.message.startswith("550"):
+                raise ValueError("No data found for given date. Target folder: [{}]".format(expected_data_dir))
+            else:
+                raise
+
 
     def select_downloads(self, file_list):
         """
@@ -135,7 +162,7 @@ class NewFileReader:
     def read_files(self,file_list,target_dir):
         """
         Download the files from the FTP server, into the target folder.
-        :param file_list: List of absoluete file paths on FTP server
+        :param file_list: List of absolute file paths on FTP server. Invalid paths will result in ftplib exceptions
         :param target_dir: Local file path to store the downloads in; will be created if non-existent
         """
 

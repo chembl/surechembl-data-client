@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
 
+import sys
 import logging
 import argparse
 from datetime import date
@@ -18,6 +19,9 @@ logging.basicConfig( format='%(asctime)s %(levelname)s %(name)s %(message)s', le
 logger = logging.getLogger(__name__)
 
 def main():
+    """
+    Main function for data retrieval and loading. See argparse message for usage.
+    """
 
     logger.info("Starting SureChEMBL update process")
 
@@ -102,18 +106,26 @@ def get_target_files(args, reader):
     :return: List of files to download and process.
     """
 
-    if args.year != None:
-        target_year = datetime.strptime(args.year, '%Y')
-        file_list = reader.get_backfile_year( target_year )
-    else:
-        target_date = date.today() if args.date == "today" else datetime.strptime(args.date, '%Y%m%d')
+    try:
 
-        if args.all:
-            file_list = reader.get_frontfile_all( target_date )
+        if args.year != None:
+            target_year = datetime.strptime(args.year, '%Y')
+            file_list = reader.get_backfile_year( target_year )
         else:
-            file_list = reader.get_frontfile_new( target_date )
+            target_date = date.today() if args.date == "today" else datetime.strptime(args.date, '%Y%m%d')
+
+            if args.all:
+                file_list = reader.get_frontfile_all( target_date )
+            else:
+                file_list = reader.get_frontfile_new( target_date )
+
+    except ValueError, exc:
+
+        logger.warn( "Unable to read file list for retrieval: {}".format(exc.message) )
+        sys.exit(1)
 
     download_list = reader.select_downloads( file_list )
+
 
     return download_list
 
