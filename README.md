@@ -7,15 +7,27 @@ A collection of scripts for retrieving, storing, and querying SureChEMBL data.
 
 ## Core dependencies
 
-* python 2.7
+Please make sure that the following dependencies are available:
+
+* Python 2.7
 * pip
-* DB API compatible client (see below)
+* RDBMS of your choice
+* Python DB API compatible client (see below)
+
+## Python libraries
+
+The complete set of required libraries can be found here:
+
+    src/requirements.txt
+
+This file was generated using pip's 'freeze' command. Use this file with your version of pip to ensure all required libraries are available.
+
 
 ## Database Client - Oracle Example
 
 Install the oracle instant client and cx_oracle, as per [these](http://www.cs.utexas.edu/~mitra/csSpring2012/cs327/cx_mac.html) instructions.
 
-*Notes*
+_Hints:_
 
 You can use pip to install cx_oracle.
 
@@ -28,10 +40,28 @@ The following environment variables are required to use cx_oracle from python:
     ORACLE_HOME=/your/instant_client/install
     DYLD_LIBRARY_PATH=/your/instant_client/install
 
-## Running the tests
+## Schema installation
+
+The database schema can be found here:
 
 
-# Schema installation
+
+
+# Running the tests
+
+The unit tests cover key functionality for data retrieval and loading, and can be run as follows.
+
+Ensure the surechembl-data-client folder is on your PYTHONPATH, e.g.:
+
+    export PYTHONPATH=~/workspaces/surechembl/surechembl-data-client
+
+Move to the tests folder, and run the tests:
+
+    cd ~/workspaces/surechembl/surechembl-data-client/src/tests
+    ./ftp_test.py
+    ./data_load_test.py
+
+
 
 
 
