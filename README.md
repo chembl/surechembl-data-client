@@ -88,7 +88,7 @@ To initiate data loading, use the following script:
 
 The script requires several parameters; these are processed and documented by Python's argparse library. 
 A usage statement can be found by running the script with the -h argument, also several examples of how to 
-execute these tasks can be found below, along with a detailed description of certain optional flags.
+execute these tasks can be found below.
 
 The update script is designed for two specific tasks:
 
@@ -98,17 +98,25 @@ The update script is designed for two specific tasks:
 Back file loading should be performed once for each historic year, while front-file loading should be 
 performed every day.
 
-## Set up the default parameters
+## Set database connection parameters
 
-The update script requires parameters for database connectivity and a working directory, however default
-parameters are provided. These default can be changed by modifying the 'default' parameter as it appears 
-in the following lines in the script:
+The update script requires parameters for database connectivity, however default parameters are provided. 
+These default can be changed by modifying the 'default' parameter as it appears in the following lines in 
+the script:
 
     parser.add_argument('--db_host',     metavar='dh', type=str,  help='Host where the database can be found',     default="127.0.0.1")
     parser.add_argument('--db_port',     metavar='do', type=str,  help='Port over which the database is accessed', default="1521")
     parser.add_argument('--db_name',     metavar='dn', type=str,  help='Database name (for connection string)',    default="XE")
-    parser.add_argument('--working_dir', metavar='w',  type=str,  help='Working directory for downloaded files',   default="/tmp/schembl_ftp_data")
 
+## Set the working directory
+
+The update script also requires a working directory, the default being:
+
+    /tmp/schembl_ftp_data
+
+The default can be overridden using a parameter, or changed in the same way as the database connection defaults.
+ 
+NOTE: the working directory will be cleaned each time the update script is run.
 
 ## Loading the backfile
 
@@ -119,7 +127,7 @@ The following example shows how to load a single back-file year:
 To obtain an FTP user and password, please contact the SureChEMBL team at the European Bioinformatics Institute. The 
 database user and password should match that of the target RDBMS.
 
-The command will retrieve all data files for the given year (from the back file), and load the database with the data.
+This command will retrieve all data files for the given year (from the back file), and load the database with the data.
 Data records are typically added in batches for performance, and the script displays progress in the form of
 inserted record counts and timings.
 
@@ -128,18 +136,51 @@ are displayed. The warnings are summarised by default, because duplicates are ex
 
     --all_dup_doc_warnings
 
-
 ## Loading the front file
 
-Duplicate document count will be shown, but no details (expect these with for supplementary data files, where the biblio is reloaded).
+The following example shows how to load front file data for a given day: 
+
+    src/update.py FTPUSER FTPPASS DB_USER DB_PASS --date 20141127
+
+This command will look for **new data files that were extracted on the given day**, which are listed files called
+'newfiles.txt'; each front file day has a separate version of this file which will typically list data files
+for the day in question, plus supplementary data files for any of the past ten days.
+
+Omitting the --date parameter causes the script to look for new files extracted today, but there may be a delay
+between extraction and files becoming available. Please check with the EBI team when newly extracted data is made
+available.
+
+It's expected that this script is run by a cron task on a daily basis to load new data, for example:
+
+    src/update.py FTPUSER FTPPASS DB_USER DB_PASS --date $(date --date="1 day ago" +"%Y%m%d")
 
 ## Loading all data for a given day
 
+If you wish to load all data for a given front file day, use the --all parameter:
 
+    src/update.py FTPUSER FTPPASS DB_USER DB_PASS --date 20141127 --all
+    
+This command will load **data for all documents published on the given day**.
 
-## Reloading data
-Just rerun the command.
+## Insert vs Update
 
+The update script typically expects that the data being loaded is not already present in the database. 
+
+No attempt is made to delete existing records if referential integrity issues are detected; so if 
+duplicate biblio data or document/chemistry mappings are detected, the original records will be retained.
+
+There are two situations where referential integrity errors are expected:
+
+* When (re)loading bibliographic data for supplementary front file updates. Here, integrity errors are discarded 
+because bibliographic data is not expected to change and the duplicates are simply re-processed for convenience.
+
+* When attributes for a document/chemical mapping change after the original extraction. This can happen when
+extra annotations are found for a given chemical, e.g. due to delayed image processing. Integrity errors are
+currently discarded in this case, so some document/chemical annotation counts may be out of date; however this
+only happens in a small fraction of cases when processing supplementary data.
+
+**Re-loading of existing data should be avoided for the back file**, instead, it's recommended that
+the database is cleared and re-loaded.
 
 # Data Coverage
 
@@ -147,14 +188,18 @@ Back file data is available for 1973-2014 (up to 18th November 2014).
  
 Front file data is available for 18th November 2014 onwards, and is updated every day.
 
-
-
 # Warnings
 
-2014-12-10 12:55:24,802 WARNING scripts.data_loader Document ID not found for scpn [EP-1365761-B1]; skipping record
-Document {} is missing {} classification data
-Integrity error [{}] detected on document insert; likely duplicate
+Several warnings may be generated by the update script, these are summarised below.
+
+Document ID not found for scpn [EP-1365761-B1]; skipping record
+
 KeyError detected when processing titles for {}; title language or text data may be missing
 
+Document EP-1365761-B1 is missing ipcr classification data
+
+Integrity error [{}] detected on document insert; likely duplicate
+
+Integrity error (\"{}\"); data={}
 
 
