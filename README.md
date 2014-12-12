@@ -80,7 +80,7 @@ Move to the tests folder, and run the tests:
     ./data_load_test.py
 
 
-# Using the client
+# How to use the SureChEMBL Data Client
 
 To initiate data loading, use the following script:
 
@@ -116,16 +116,21 @@ The following example shows how to load a single back-file year:
 
     ./src/update.py FTPUSER FTPPASS DB_USER DB_PASS --year 2006
 
-To obtain an FTP user and password, please contact the SureChEMBL team at the European Bioinformatics Institute.
+To obtain an FTP user and password, please contact the SureChEMBL team at the European Bioinformatics Institute. The 
+database user and password should match that of the target RDBMS.
 
-The database user and password should match that of the target RDBMS.
+The command will retrieve all data files for the given year (from the back file), and load the database with the data.
+Data records are typically added in batches for performance, and the script displays progress in the form of
+inserted record counts and timings.
 
 You may also want to provide the following parameter to ensure all warnings for duplicate bibliographic records
 are displayed. The warnings are summarised by default, because duplicates are expected when loading the front file data.
 
     --all_dup_doc_warnings
 
+
 ## Loading the front file
+
 Duplicate document count will be shown, but no details (expect these with for supplementary data files, where the biblio is reloaded).
 
 ## Loading all data for a given day
@@ -135,6 +140,12 @@ Duplicate document count will be shown, but no details (expect these with for su
 ## Reloading data
 Just rerun the command.
 
+
+# Data Coverage
+
+Back file data is available for 1973-2014 (up to 18th November 2014).
+ 
+Front file data is available for 18th November 2014 onwards, and is updated every day.
 
 
 
