@@ -536,7 +536,8 @@ class DBInserter:
                         logger.error("Operation was: {}".format(self.operation))
                         raise
 
-                    logger.warn( "Integrity error (\"{}\"); data={}".format(exc.message, record) )
+                    error_msg = str(exc.message).rstrip()
+                    logger.warn( "Integrity error (\"{}\"); data={}".format(error_msg, record) )
 
         else:
             # If all goes well, we just need a single commit
