@@ -5,6 +5,8 @@ A collection of scripts for retrieving SureChEMBL data and building a relational
 
 Please clone this repository to your local environment and follow the instructions below. 
 
+Released under the MIT license. Access to the SureChEMBL data must be obtained from EBI-EMBL.
+
 # Installation
 
 ## Core dependencies
@@ -54,7 +56,7 @@ It is designed to be RDBMS agnostic, but has only been tested with Oracle XE and
 
 **NOTE: The schema requires minor alterations depending on your RDBMS - see the inline instructions in sc_data.sql** 
 
-As an alternative to sc_data.sql, a SQL Alchemy schema can be used to generate the schema. See the following test
+As an alternative to sc_data.sql, a SQL Alchemy schema can be used to generate the database schema. See the following test
 for an example of how to do this:
 
     data_load_test.py - DataLoaderTests.setUp()
@@ -133,7 +135,8 @@ Data records are typically added in batches for performance, and the script disp
 inserted record counts and timings.
 
 You may also want to provide the following parameter to ensure all warnings for duplicate bibliographic records
-are displayed. The warnings are summarised by default, because duplicates are expected when loading the front file data.
+are displayed. The warnings are summarised by default, because duplicate document records are only expected when 
+loading the front file data.
 
     --all_dup_doc_warnings
 
