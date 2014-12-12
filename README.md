@@ -86,10 +86,6 @@ To initiate data loading, use the following script:
 
     src/update.py
 
-The script requires several parameters; these are processed and documented by Python's argparse library. 
-A usage statement can be found by running the script with the -h argument, also several examples of how to 
-execute these tasks can be found below.
-
 The update script is designed for two specific tasks:
 
 * To load 'back file' data to pre-populate the database with historic records 
@@ -97,6 +93,11 @@ The update script is designed for two specific tasks:
 
 Back file loading should be performed once for each historic year, while front-file loading should be 
 performed every day.
+
+The script requires a number of parameters. These are parsed and documented by Python's argparse library, so 
+a usage statement can be found by running the script with the -h argument. 
+
+Guidance is provided below for setting default parameters, followed by instructions for executing specific tasks. 
 
 ## Set database connection parameters
 
