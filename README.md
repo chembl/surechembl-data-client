@@ -52,7 +52,9 @@ The database schema can be found in:
 
     schema/sc_data.sql
 
-It is designed to be RDBMS agnostic, but has only been tested with Oracle XE and MySQL. 
+It is designed to be RDBMS agnostic, but has only been tested with Oracle XE and MySQL.
+ 
+A detailed description of the schema can be found in Google Docs, [here](https://docs.google.com/document/d/1INrMl63bp0Ut7hi_BvCXmW39SS62QeYL99lKB3PdwE4/edit#heading=h.6senzsu0y7u).
 
 **NOTE: The schema requires minor alterations depending on your RDBMS - see the inline instructions in sc_data.sql** 
 
