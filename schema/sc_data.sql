@@ -3,14 +3,15 @@
 -- Designed for Oracle and MySQL. See per-table comments for minor adjustments 
 -- that may be needed for your RDBMS.
 
-/*** DROP statements are for convenience only
+/*** Drop statements (for convenience only)
 
 DROP TABLE schembl_document ;
 DROP TABLE schembl_document_class ;
 DROP TABLE schembl_document_title ;
-DROP TABLE schembl_chemical ;
 DROP TABLE schembl_chemical_structure ;
+DROP TABLE schembl_chemical;
 DROP TABLE schembl_document_chemistry ;
+DROP SEQUENCE schembl_document_id;
 
 ***/
 
@@ -19,7 +20,7 @@ DROP TABLE schembl_document_chemistry ;
 -- -----------------------------------------------------
 
 -- MySQL:  Add AUTO_INCREMENT to 'id'
--- Oracle: Comment-in the sequence and trigger
+-- Oracle: Comment-in the sequence
 
 CREATE TABLE schembl_document (
   id INTEGER NOT NULL,
@@ -32,17 +33,7 @@ CREATE TABLE schembl_document (
 CREATE UNIQUE INDEX scpn_UNIQUE ON schembl_document (scpn ASC);
 
 /***
-
 CREATE SEQUENCE schembl_document_id;
-
-CREATE OR REPLACE TRIGGER schembl_document_bef_id
-  BEFORE INSERT ON schembl_document
-  FOR EACH ROW
-BEGIN
-  :new.id := schembl_document_id.nextval;
-END;
-/
-
 ***/
 
 -- -----------------------------------------------------
