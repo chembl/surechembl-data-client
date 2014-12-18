@@ -16,18 +16,26 @@ Please make sure that the following dependencies are available:
 * Python 2.7
 * pip
 * RDBMS of your choice
+* SQLAlchemy 0.9.8
 * Python DB API compatible client (see below)
+
+If you want to use the default RDBMS (oracle), you'll need:
+
+* cx_oracle 5.1.3
 
 Note that the client code has been tested against Oracle, but is written in a DB-agnostic way to simplify usage in
 other scenarios.
 
 ## Python libraries
 
-The complete set of required libraries can be found here:
+The complete 'pinned' library dependencies can be found in the following files, for Ubuntu and Mac OS X:
 
-    src/requirements.txt
+    src/requirements_ubuntu.txt
+    src/requirements_macosx.txt
 
-This file was generated using pip's 'freeze' command. Use this file with your version of pip to ensure all required libraries are available.
+These files were generated using pip's 'freeze' command. Use this file with your version of pip if you want to ensure 
+your python environment completely matches the tested environment. Note however that the only non-core Python 
+dependencies are SQLAlchemy and the DB API clienbt.
 
 ## Database Client - Oracle Example
 
