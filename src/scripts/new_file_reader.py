@@ -13,7 +13,7 @@ class NewFileReader:
 
     FRONT_FILE_LOC  = "/data/external/frontfile"
     BACK_FILE_LOC   = "/data/external/backfile"
-    DAY_FILES_LOC   = FRONT_FILE_LOC + "/{0}/{1}/{2:02d}"
+    DAY_FILES_LOC   = FRONT_FILE_LOC + "/{0}/{1:02d}/{2:02d}"
     YEAR_FILES_LOC  = BACK_FILE_LOC + "/{0}"
     NEW_FILES_NAME  = "newfiles.txt"
 

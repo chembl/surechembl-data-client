@@ -46,10 +46,10 @@ class FTPTests(unittest.TestCase):
         self.ftp.cwd.assert_called_with( "/data/external/frontfile/2013/11/04" )
 
     def test_find_new_read_files(self):
+        files = self.reader.get_frontfile_new( datetime.date(1998,1,3) ) 
 
-        files = self.reader.get_frontfile_new( datetime.date(2012,10,3) )
-
-        self.ftp.cwd.assert_called_with( "/data/external/frontfile/2012/10/03" )
+        # Also test correct handling of single digit date fields
+        self.ftp.cwd.assert_called_with( "/data/external/frontfile/1998/01/03" )
         self.ftp.retrbinary.assert_called_with( "RETR newfiles.txt", ANY )
 
         self.failUnlessEqual(
@@ -65,6 +65,8 @@ class FTPTests(unittest.TestCase):
 
     def test_find_files_by_timeperiod(self):
         self.verify_file_retrieval(lambda : self.reader.get_frontfile_all(datetime.date(2013, 11, 4)), "/data/external/frontfile/2013/11/04")
+        self.verify_file_retrieval(lambda : self.reader.get_frontfile_all(datetime.date(2015, 1, 3)), "/data/external/frontfile/2015/01/03")
+        self.verify_file_retrieval(lambda : self.reader.get_frontfile_all(datetime.date(2015, 12, 22)), "/data/external/frontfile/2015/12/22")
         self.verify_file_retrieval(lambda : self.reader.get_backfile_year(datetime.date(2011, 1, 1)), "/data/external/backfile/2011")
 
     def verify_file_retrieval(self, f, exp_path):
