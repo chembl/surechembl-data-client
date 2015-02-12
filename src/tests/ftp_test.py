@@ -11,7 +11,7 @@ from mock import call
 
 from src.scripts.new_file_reader import NewFileReader
 
-chunks = ['''\
+chunked_file_list = ['''\
 path/to/file/1
 path/to/file/2
 path/to/fi''',
@@ -23,9 +23,16 @@ longer/path/to/differe''',
 nt/file/B
 longer/path/to/different/file/C''']
 
+
+def prep_chunks(chunk_parm):
+    global chunks
+    chunks = chunk_parm
+
 def chunk_writer(*args, **kwargs):
+    global chunks
     writer_func = args[1]
     for chunk in chunks: writer_func(chunk)
+
 
 class FTPTests(unittest.TestCase):
 
@@ -34,6 +41,9 @@ class FTPTests(unittest.TestCase):
         self.ftp = ftplib.FTP()
         self.ftp.cwd        = MagicMock(return_value=None)
         self.ftp.retrbinary = MagicMock(return_value=None)
+        self.ftp.nlst       = MagicMock(return_value=[])
+
+        prep_chunks(chunked_file_list)
         self.ftp.retrbinary.side_effect = chunk_writer
 
         self.reader = NewFileReader(self.ftp)
@@ -128,7 +138,7 @@ class FTPTests(unittest.TestCase):
         self.handle_missing_date( lambda : self.reader.get_backfile_year( datetime.date(2121,01,01) ), "/data/external/backfile/2121")
 
     def handle_missing_date(self, f, dir_str):
-        self.ftp.cwd.side_effect = ftplib.error_perm("550 Failed to change directory.")
+        self.ftp.cwd.side_effect = [None, ftplib.error_perm("550 Failed to change directory.")]
         try:
             f()
             self.fail("Exception expected")
@@ -142,6 +152,23 @@ class FTPTests(unittest.TestCase):
             self.fail("Exception expected")
         except ValueError, e:
             self.assertEqual("No new files entry was found for [2113-11-04]", e.message)
+
+    def test_sync_lock_get_files(self):
+        self.verify_sync_lock( lambda: self.reader.get_frontfile_all( datetime.date(2013, 11, 4) ), "/data/external/frontfile/2013/11/04" )
+        self.verify_sync_lock( lambda: self.reader.get_frontfile_new( datetime.date(2014, 12, 5) ), "/data/external/frontfile/2014/12/05" )
+        self.verify_sync_lock( lambda: self.reader.get_backfile_year( datetime.date(2121,01,01) ), "/data/external/backfile/2121")
+    def verify_sync_lock(self, f, target_dir):
+        ftp_file_list = ['data', 'upload', 'sync.lock']
+        self.ftp.nlst = MagicMock(return_value=ftp_file_list)
+
+        try:
+            f()
+            self.fail("Exception expected")
+        except RuntimeError, e:
+            self.ftp.cwd.assert_called_with("/")
+            self.ftp.nlst.assert_called_with()
+            self.assertEqual("SureChEMBL FTP server is currently locked", e.message)
+
 
 
 def main():

@@ -44,6 +44,8 @@ class NewFileReader:
 
         logger.info( "Identifying new files for {}".format(from_date) )
 
+        self._check_sync_lock()
+
         new_files_loc = self.DAY_FILES_LOC.format(
             from_date.year,
             from_date.month,
@@ -81,6 +83,8 @@ class NewFileReader:
 
         logger.info( "Identifying files for day {}".format(date) )
 
+        self._check_sync_lock()
+
         day_files_path = self.DAY_FILES_LOC.format(
             date.year,
             date.month,
@@ -106,6 +110,8 @@ class NewFileReader:
         year = date_obj.year
         logger.info( "Identifying files for year {}".format(year) )
 
+        self._check_sync_lock()
+
         year_path = self.YEAR_FILES_LOC.format(year)
 
         self._change_to_data_dir(year_path)
@@ -128,6 +134,13 @@ class NewFileReader:
             else:
                 raise
 
+    def _check_sync_lock(self):
+
+        self.ftp.cwd("/")
+        ftp_file_list = self.ftp.nlst()
+
+        if "sync.lock" in ftp_file_list:
+            raise RuntimeError("SureChEMBL FTP server is currently locked")
 
     def select_downloads(self, file_list):
         """
