@@ -139,7 +139,7 @@ class NewFileReader:
         self.ftp.cwd("/")
         ftp_file_list = self.ftp.nlst()
 
-        if "sync.lock" in ftp_file_list:
+        if "sync.lck" in ftp_file_list:
             raise RuntimeError("SureChEMBL FTP server is currently locked")
 
     def select_downloads(self, file_list):
