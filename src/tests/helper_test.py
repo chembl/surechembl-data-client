@@ -21,6 +21,12 @@ class HelperTests(unittest.TestCase):
         retry( 5, self.f, self.fparms )
         self.f.assert_called_with( 'parm1',2,True )
 
+    def test_retry_success_retval(self):
+    	self.f.return_value = "Success"
+        retval = retry( 5, self.f, self.fparms )
+        self.f.assert_called_with( 'parm1',2,True )
+        self.assertEqual("Success", retval)
+
     def test_retry_failure_basic(self):
     	self.verify_retry_failures(5,2,0)
 

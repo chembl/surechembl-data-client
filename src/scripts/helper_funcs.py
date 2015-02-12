@@ -5,9 +5,9 @@ from time import sleep
 logger = logging.getLogger(__name__)
 
 def retry(max_attempts, func, parms, sleep_secs=0):
-  """
-  Provides a general purpose retry mechanism for Exception throwing functions
-  """
+	"""
+	Provides a general purpose retry mechanism for Exception throwing functions
+	"""
 
 	complete = False
 	attempts = 0
@@ -18,7 +18,7 @@ def retry(max_attempts, func, parms, sleep_secs=0):
 		attempts += 1
 
 		try:
-			func(*parms)			
+			ret_val = func(*parms)			
 			complete = True
 		except Exception, e:
 			last_exc = e
@@ -29,6 +29,7 @@ def retry(max_attempts, func, parms, sleep_secs=0):
 	# Post processing - error logging, and rethrow exception if needed
 	if complete:
 		logger.debug( "Retry block succeeded after {} attempts".format(attempts) )
+		return ret_val
 	else:
 		logger.error( "Retry block unable to complete after {} attempts".format(attempts) )
 		raise last_exc
