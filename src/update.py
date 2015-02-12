@@ -60,7 +60,7 @@ def main():
     ftp = ftplib.FTP('ftp-private.ebi.ac.uk', args.ftp_user, args.ftp_pass)
     reader = NewFileReader(ftp)
 
-    download_list = get_target_files(args, reader)
+    download_list = _get_files_retry(args, reader)
 
     if len( download_list ) == 0:
         logger.info("No files detected for download, exiting")
@@ -80,7 +80,7 @@ def main():
     logger.info("Loading data files into DB")
 
     try:
-        db = get_db_engine(args)
+        db = _get_db_engine(args)
         loader = DataLoader(db,
                     load_titles=not args.skip_titles,
                     load_classifications=not args.skip_classes,
@@ -100,7 +100,7 @@ def main():
         logger.error( "Oracle exception detected: {}".format( exc ) )
         raise
 
-def get_target_files(args, reader):
+def _get_files_retry(args, reader):
     """
     Identify a set of files to download.
     :param args: Command line arguments to process
@@ -110,29 +110,32 @@ def get_target_files(args, reader):
 
     try:
 
-        if args.year != None:
-            target_year = datetime.strptime(args.year, '%Y')
-            file_list = reader.get_backfile_year( target_year )
-        else:
-            target_date = date.today() if args.date == "today" else datetime.strptime(args.date, '%Y%m%d')
+        download_list = retry(5, _get_target_downloads, [args,reader], sleep_secs=180)
 
-            if args.all:
-                file_list = reader.get_frontfile_all( target_date )
-            else:
-                file_list = reader.get_frontfile_new( target_date )
+    except Exception, exc:
 
-    except ValueError, exc:
-
-        logger.warn( "Unable to read file list for retrieval: {}".format(exc.message) )
+        logger.error( "Exception detected in _get_target_downloads! Message: {}".format(exc.message) )
         sys.exit(1)
-
-    download_list = reader.select_downloads( file_list )
-
 
     return download_list
 
+def _get_target_downloads(args, reader):
 
-def get_db_engine(args):
+    if args.year != None:
+        target_year = datetime.strptime(args.year, '%Y')
+        file_list = reader.get_backfile_year( target_year )
+    else:
+        target_date = date.today() if args.date == "today" else datetime.strptime(args.date, '%Y%m%d')
+
+        if args.all:
+            file_list = reader.get_frontfile_all( target_date )
+        else:
+            file_list = reader.get_frontfile_new( target_date )
+
+    return reader.select_downloads( file_list )
+
+
+def _get_db_engine(args):
     """
     Create a database connection.
 
