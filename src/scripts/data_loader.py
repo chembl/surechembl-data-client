@@ -5,7 +5,7 @@ import csv
 import re
 import time
 from datetime import datetime
-from sqlalchemy import MetaData, Table, ForeignKey, Column, Sequence, Integer, Float, String, SmallInteger, Date, Text, select
+from sqlalchemy import MetaData, Table, ForeignKey, Column, Sequence, Integer, Float, String, SmallInteger, Date, Text, select, bindparam
 
 logger = logging.getLogger(__name__)
 
@@ -81,15 +81,19 @@ class DataLoader:
 
     def __init__(self, db,
                  relevant_classes=DocumentClass.default_relevant_set,
-                 allow_doc_dups=True,
-                 all_dup_doc_warnings=True,
                  load_titles=True,
-                 load_classifications=True):
+                 load_classifications=True,
+                 update=False,
+                 allow_doc_dups=True,
+                 all_dup_doc_warnings=True):
         """
         Create a new DataLoader.
         :param db: SQL Alchemy database connection.
         :param relevant_classes: List of document classification prefix strings to treat as relevant.
         :param allow_doc_dups: Flag indicating whether duplicate documents should be ignored
+
+
+
         """
 
         logger.info( "Life-sci relevant classes: {}".format(relevant_classes) )
@@ -97,10 +101,11 @@ class DataLoader:
 
         self.db                   = db
         self.relevant_classes     = relevant_classes
-        self.allow_document_dups  = allow_doc_dups
-        self.all_dup_doc_warnings = all_dup_doc_warnings
         self.load_titles          = load_titles
         self.load_classifications = load_classifications
+        self.update               = update
+        self.allow_document_dups  = allow_doc_dups
+        self.all_dup_doc_warnings = all_dup_doc_warnings
 
         self.relevant_regex = re.compile( '|'.join(relevant_classes) )
 
@@ -192,65 +197,135 @@ class DataLoader:
         title_ins = DBInserter(db_api_conn, 'insert into schembl_document_title (schembl_doc_id, lang, text) values (:1, :2, :3)')
         classes_ins = DBInserter(db_api_conn, 'insert into schembl_document_class (schembl_doc_id, class, system) values (:1, :2, :3)')
 
+
+
+
+        #################################################
+        # STEP 1: See if document records already exist #
+        #################################################
+
+        extant_docs = set()
+
+        for chunk in chunks(biblio, chunksize):
+
+            # Loop over all biblio entries in this chunk
+            doc_nums = set()
+            for bib in chunk[1]:
+
+                input_pubnum = self._extract_pubnumber(bib)
+
+                # Early return: don't bother querying if we already have an ID
+                if input_pubnum in self.doc_id_map:
+                    extant_docs.add( input_pubnum ) 
+                    continue
+
+                doc_nums.add(input_pubnum)
+
+            if len(doc_nums) == 0:
+                continue
+
+            logger.debug( "Retrieving primary key IDs for {} existing publication numbers".format(len(doc_nums)) )
+
+            # Hit the DB for the chosen pub numbers
+            sel = select( [self.docs.c.scpn, self.docs.c.id] )\
+                  .where( (self.docs.c.scpn.in_(doc_nums)) )
+
+            result = sql_alc_conn.execute(sel)
+            found_docs = result.fetchall()
+
+            # Add any discovered document IDs to the global map;
+            # add any discovered document IDs to extant set for this input file
+            for found_doc in found_docs:
+                self.doc_id_map[ found_doc[0] ] = found_doc[1]
+                extant_docs.add( found_doc[0] )
+
+            logger.debug( "Known documents IDs now at: {}".format(len(self.doc_id_map)) )
+
+
+        ########################################################
+        # STEP 2: Main biblio record processing loop (chunked) #
+        ########################################################
+
         for chunk in chunks(biblio, chunksize):
 
             logger.debug( "Processing biblio data to index {}".format(chunk[0]) )
 
             new_doc_mappings = dict()
-            new_titles = []
-            new_classes = []
-            dup_docs = set()
 
-            transaction = sql_alc_conn.begin()
+            update_docs = []
+            new_titles = []
+            new_classes = []        
 
             doc_insert_time = 0
 
+            transaction = sql_alc_conn.begin()
+
             for bib in chunk[1]:
+
+                ########################################
+                # STEP 2.1 Extract core biblio records #
+                ########################################
 
                 family_id, pubdate, pubnumber = self._extract_core_biblio(bib)
 
-                # Check if this document has already been processed
-                if self.allow_document_dups:
-                    if pubnumber in self.doc_id_map:
-                        continue
-
                 life_sci_relevant = self._extract_life_sci_relevance(bib)
 
-                # Create a new record for the document
-                record = {
-                    'scpn'              : pubnumber,
-                    'published'         : pubdate,
-                    'family_id'         : family_id,
-                    'life_sci_relevant' : int(life_sci_relevant) }
 
-                try:
+                #################################################
+                # Step 2.2 Update or Insert the document record #
+                #################################################
 
-                    start = time.time()
-                    result = sql_alc_conn.execute(doc_ins, record)
-                    end = time.time()
+                if pubnumber in extant_docs:
 
-                    doc_insert_time += (end-start)
+                    if self.update:
 
-                except Exception, exc:
+                        # Create an update record
+                        doc_id = self.doc_id_map[pubnumber]                    
+                        update_docs.append({
+                            'extant_id'             : doc_id,
+                            'new_published'         : pubdate,
+                            'new_family_id'         : family_id,
+                            'new_life_sci_relevant' : life_sci_relevant })
 
-                    if exc.__class__.__name__ != "IntegrityError":
-                        raise
+                    elif not self.allow_document_dups:
 
-                    if not self.allow_document_dups:
+                        # We're not updating, and duplicates have been disallowed - exception 
                         raise RuntimeError(
-                            "An Integrity error was detected when inserting document {}. This "\
-                            "is likely to indicate a duplicate document - which are not allowed".format(pubnumber))
+                            "Input document {} already exists in the database, and allow_document_dups = False".format(pubnumber))
 
-                    dup_docs.add(pubnumber)
+                    else:
 
-                    if self.all_dup_doc_warnings:
-                        logger.warn( "Integrity error [{}] detected on document insert; likely duplicate".format(exc.message) )
-                        logger.warn( "Integrity error record: {}".format(record) )
+                        # We're not updating, but duplicates are OK - move on
+                        continue
 
-                    continue
+                else:
 
-                doc_id = result.inserted_primary_key[0] # Single PK
-                new_doc_mappings[pubnumber] = doc_id
+                    # Create a new record for the document
+                    record = {
+                        'scpn'              : pubnumber,
+                        'published'         : pubdate,
+                        'family_id'         : family_id,
+                        'life_sci_relevant' : int(life_sci_relevant) }
+
+                    try:
+
+                        start = time.time()
+                        result = sql_alc_conn.execute(doc_ins, record)
+                        end = time.time()
+
+                        doc_insert_time += (end-start)
+
+                    except Exception, exc:
+
+                        if exc.__class__.__name__ != "IntegrityError":
+                            raise
+                        else:
+                            raise RuntimeError(
+                                "An Integrity error was detected when inserting document {}. This "\
+                                "indicates insertion of a document that already exists - this should not happen".format(pubnumber))
+
+                    doc_id = result.inserted_primary_key[0] # Single PK
+                    new_doc_mappings[pubnumber] = doc_id
 
                 self._extract_detailed_biblio(bib, doc_id, new_classes, new_titles, pubnumber)
 
@@ -258,36 +333,37 @@ class DataLoader:
             transaction.commit()
             self.doc_id_map.update(new_doc_mappings)
 
-            logger.info("Document loading took {} seconds; {} document records loaded, "\
-                        "with {} Integrity errors (which indicate probable duplicates)"
-                        .format(doc_insert_time, len(chunk[1]), len(dup_docs)))
+            logger.info("Insertion of {} documents completed, execution time {}".format(len(new_doc_mappings), doc_insert_time))
+
+
+            ##################################
+            # STEP 2.2: Bulk insert / update #
+            ##################################
+
+            if len(update_docs) > 0:
+
+                stmt = self.docs.update().\
+                    where(self.docs.c.id == bindparam('extant_id')).\
+                    values(published=bindparam('new_published'), 
+                           family_id=bindparam('new_family_id'), 
+                           life_sci_relevant=bindparam('new_life_sci_relevant'))
+
+                transaction = sql_alc_conn.begin()
+                sql_alc_conn.execute(stmt, update_docs)
+                transaction.commit()
+
+                logger.info("Update of {} documents completed".format(len(update_docs)))
 
             # Bulk insert titles and classification
             if self.load_titles:
-                logger.debug("Performing {} title inserts".format(len(new_titles)) )
                 title_ins.insert(new_titles)
+                logger.debug("Insertion of {} titles completed".format(len(new_titles)) )
 
             if self.load_classifications:
-                logger.debug("Performing {} classification inserts".format(len(new_classes)) )
                 classes_ins.insert(new_classes)
+                logger.debug("Insertion of {} classification completed".format(len(new_classes)) )
 
-            # ... we'll also need to find the IDs for any duplicate docs, for chemistry insertion
-            if (len(dup_docs) > 0):
-
-                logger.debug( "Retrieving primary key IDs for {} existing publication numbers".format(len(dup_docs)) )
-                sel = select(
-                        [self.docs.c.scpn, self.docs.c.id])\
-                      .where(
-                        (self.docs.c.scpn.in_(dup_docs) ))
-
-                # Add results to the pubnumber -> doc ID map
-                result = sql_alc_conn.execute(sel)
-                found_docs = result.fetchall()
-                for found_doc in found_docs:
-                    self.doc_id_map[found_doc[0]] = found_doc[1]
-
-                logger.debug( "Known documents IDs now at: {}".format(len(self.doc_id_map)) )
-
+        # END of main biblio processing loop
 
         # Clean up resources
         title_ins.close()
@@ -296,6 +372,20 @@ class DataLoader:
         input_file.close()
 
         logger.info("Biblio import completed" )
+
+
+
+
+    def _extract_pubnumber(self, bib):
+        """Retrieve and parse the publication number"""
+        try:
+            pubnumber = bib_scalar(bib, 'pubnumber')
+        except KeyError, exc:
+            raise RuntimeError("Document is missing mandatory biblio field (KeyError: {})".format(exc))
+        if len(pubnumber) == 0:
+            raise RuntimeError("Document publication number field is empty")
+
+        return pubnumber
 
     def _extract_core_biblio(self, bib):
         """Retrieve and parse the core document biblio fields"""
@@ -354,6 +444,11 @@ class DataLoader:
                         new_classes.append((doc_id, classif, DocumentClass.bib_dict[system_key] ))
                 except KeyError:
                     logger.warn("Document {} is missing {} classification data".format(pubnumber, system_key))
+
+
+
+
+
 
 
     def load_chems(self, file_name, chunksize=1000):
@@ -502,6 +597,8 @@ class DBInserter:
 
     def insert(self,data):
         """Insert the given data, in bulk"""
+
+        #transaction = self.conn.begin() - check if this is needed
 
         try:
 

@@ -54,8 +54,7 @@ class DataLoaderTests(unittest.TestCase):
             DataLoader( self.db, self.test_classifications, allow_doc_dups=False ).load_biblio('data/biblio_typical.json')
             self.fail("Exception was expected")
         except RuntimeError,exc:
-            self.failUnlessEqual("An Integrity error was detected when inserting document WO-2013127697-A1. This "\
-                                 "is likely to indicate a duplicate document - which are not allowed", exc.message)
+            self.failUnlessEqual("Input document WO-2013127697-A1 already exists in the database, and allow_document_dups = False", exc.message)
 
     def test_sequence_definitions(self):
         mdata = self.loader.db_metadata()
@@ -154,6 +153,32 @@ class DataLoaderTests(unittest.TestCase):
         simple_loader.load_biblio( 'data/biblio_typical.json' )
         rows = self.query(['schembl_document_class']).fetchall()
         self.failUnlessEqual(0, len(rows))
+
+    def test_document_replacement(self):
+        simple_loader = DataLoader( self.db, self.test_classifications, update=True )
+
+        simple_loader.load_biblio( 'data/biblio_typical.json' )
+        rows = self.query(['schembl_document']).fetchall()
+        self.failUnlessEqual( 25, len(rows) )
+
+        self.verify_doc( rows[0], (1,'WO-2013127697-A1',date(2013,9,6),0,47747634) )
+        self.verify_doc( rows[18], (19,'WO-2013189302-A1',date(2013,12,27),0,49768126) )
+
+        simple_loader.load_biblio( 'data/biblio_typical_update.json' )
+        rows = self.query(['schembl_document']).fetchall()
+        self.failUnlessEqual( 25, len(rows) )
+
+        self.verify_doc( rows[0], (1,'WO-2013127697-A1',date(2013,9,5),0,47474747) )
+        self.verify_doc( rows[18], (19,'WO-2013189302-A1',date(2013,12,31),0,47474748) )
+
+
+# life sci relevant
+# replacement titles
+# update/new titles
+# update/new classifications
+# Timer per statement
+
+
 
     ###### Chem loading tests ######
 
