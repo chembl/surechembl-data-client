@@ -83,7 +83,7 @@ class DataLoader:
                  relevant_classes=DocumentClass.default_relevant_set,
                  load_titles=True,
                  load_classifications=True,
-                 update=False,
+                 overwrite=False,
                  allow_doc_dups=True):
         """
         Create a new DataLoader.
@@ -91,8 +91,8 @@ class DataLoader:
         :param relevant_classes: List of document classification prefix strings to treat as relevant.
         :param load_titles Flag indicating whether document titles should be loaded at all
         :param load_classifications Flag indicating whether document classifications should be loaded at all
-        :param update Flag indicating if existing documents should be updated (results in all existing 
-            titles, classifications, and mappings being replaced for the document)
+        :param overwrite Flag indicating if existing documents should be overwritten - results in all existing 
+            titles, classifications, and mappings being replaced for the document!
         :param allow_doc_dups: Flag indicating whether duplicate documents should be ignored
         """
 
@@ -103,7 +103,7 @@ class DataLoader:
         self.relevant_classes     = relevant_classes
         self.load_titles          = load_titles
         self.load_classifications = load_classifications
-        self.update               = update
+        self.overwrite            = overwrite
         self.allow_document_dups  = allow_doc_dups
 
         self.relevant_regex = re.compile( '|'.join(relevant_classes) )
@@ -248,7 +248,7 @@ class DataLoader:
 
             new_doc_mappings = dict()
 
-            update_docs = []
+            overwrite_docs = []
             new_titles = []
             new_classes = []        
 
@@ -267,17 +267,17 @@ class DataLoader:
                 life_sci_relevant = self._extract_life_sci_relevance(bib)
 
 
-                #################################################
-                # Step 2.2 Update or Insert the document record #
-                #################################################
+                ####################################################
+                # Step 2.2 Overwrite or Insert the document record #
+                ####################################################
 
                 if pubnumber in extant_docs:
 
-                    if self.update:
+                    if self.overwrite:
 
-                        # Create an update record
+                        # Create an overwrite record
                         doc_id = self.doc_id_map[pubnumber]                    
-                        update_docs.append({
+                        overwrite_docs.append({
                             'extant_id'             : doc_id,
                             'new_published'         : pubdate,
                             'new_family_id'         : family_id,
@@ -325,32 +325,32 @@ class DataLoader:
 
                 self._extract_detailed_biblio(bib, doc_id, new_classes, new_titles, pubnumber)
 
-            # Commit the new document records, then update the official mapping with the new IDs
+            # Commit the new document records, then update the in-memory mapping with the new IDs
             transaction.commit()
             self.doc_id_map.update(new_doc_mappings)
 
             logger.info("Insertion of {} documents completed, execution time {}".format(len(new_doc_mappings), doc_insert_time))
 
 
-            ########################################
-            # STEP 2.2: Deal with document updates #
-            ########################################
+            ###########################################
+            # STEP 2.2: Deal with document overwrites #
+            ###########################################
 
-            if len(update_docs) > 0:
+            if len(overwrite_docs) > 0:
 
                 transaction = sql_alc_conn.begin()
 
-                # Update the master record for the document that's being updated
+                # Update the master record for the document that's being overwritten
                 stmt = self.docs.update().\
                     where(self.docs.c.id == bindparam('extant_id')).\
                     values(published=bindparam('new_published'), 
                            family_id=bindparam('new_family_id'), 
                            life_sci_relevant=bindparam('new_life_sci_relevant'))
 
-                sql_alc_conn.execute(stmt, update_docs)
+                sql_alc_conn.execute(stmt, overwrite_docs)
 
                 # Clean out ALL other references to the document, for re-insertion
-                delete_ids = [record['extant_id'] for record in update_docs]
+                delete_ids = [record['extant_id'] for record in overwrite_docs]
 
                 stmt = self.titles.delete().where( self.titles.c.schembl_doc_id.in_( delete_ids ) )
                 sql_alc_conn.execute( stmt )
@@ -363,7 +363,7 @@ class DataLoader:
 
                 transaction.commit()
 
-                logger.info("Update of {} documents completed".format(len(update_docs)))
+                logger.info("{} documents overwritten (i.e. master doc record updated, all other references deleted)".format(len(overwrite_docs)))
 
 
             ########################################################

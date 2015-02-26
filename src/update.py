@@ -42,9 +42,10 @@ def main():
     group.add_argument('--year',         metavar='y',  type=str,  help='A year to extract from the back file, format: YYYY')
 
     # Flags to adjust loading behaviour
-    parser.add_argument('--all',         help='Download all files, or just new files? Front file only', action="store_true")
-    parser.add_argument('--skip_titles', help='Ignore titles when loading document metadata',           action="store_true")
-    parser.add_argument('--skip_classes',help='Ignore classifications when loading document metadata',  action="store_true")
+    parser.add_argument('--all',          help='Download all files, or just new files? Front file only',                     action="store_true")
+    parser.add_argument('--overwrite',    help='Replace any existing document/chemistry records with newly downloaded data', action="store_true")
+    parser.add_argument('--skip_titles',  help='Ignore titles when loading document metadata',                               action="store_true")
+    parser.add_argument('--skip_classes', help='Ignore classifications when loading document metadata',                      action="store_true")
 
     args = parser.parse_args()
 
@@ -84,6 +85,7 @@ def main():
         loader = DataLoader(db,
                     load_titles=not args.skip_titles,
                     load_classifications=not args.skip_classes,
+                    overwrite=args.overwrite,
                     allow_doc_dups=True)
 
         for bib_file in filter( lambda f: f.endswith("biblio.json"), downloads):

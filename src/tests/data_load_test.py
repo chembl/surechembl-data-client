@@ -155,7 +155,7 @@ class DataLoaderTests(unittest.TestCase):
         self.failUnlessEqual(0, len(rows))
 
     def test_replace_document(self):
-        simple_loader = DataLoader( self.db, self.test_classifications, update=True )
+        simple_loader = DataLoader( self.db, self.test_classifications, overwrite=True )
         simple_loader.load_biblio( 'data/biblio_typical.json' )
 
         rows = self.query_all(['schembl_document']).fetchall()
@@ -174,7 +174,7 @@ class DataLoaderTests(unittest.TestCase):
     def test_replace_titles(self):
 
         # Covers deletion of obsolete titles, insertion of new titles, and modification of existing records
-        updating_loader = DataLoader( self.db, self.test_classifications, update=True )
+        updating_loader = DataLoader( self.db, self.test_classifications, overwrite=True )
 
         updating_loader.load_biblio( 'data/biblio_typical.json' )
         self.verify_titles( 1, {'DE':u"VERWENDUNG EINES LATENTREAKTIVEN KLEBEFILMS ZUR VERKLEBUNG VON ELOXIERTEM ALUMINIUM MIT KUNSTSTOFF", 
@@ -189,7 +189,7 @@ class DataLoaderTests(unittest.TestCase):
     def test_replace_classes(self):
 
         # Covers deletion of obsolete classes, insertion of new classes, and modification of existing records
-        updating_loader = DataLoader( self.db, self.test_classifications, update=True )
+        updating_loader = DataLoader( self.db, self.test_classifications, overwrite=True )
 
         updating_loader.load_biblio( 'data/biblio_typical.json' )
 
@@ -288,7 +288,7 @@ class DataLoaderTests(unittest.TestCase):
 
     def test_replacement_mappings(self):
         # Check that updating replaces mappings (deals with deletions, replacements, insertions)
-        updating_loader = DataLoader( self.db, self.test_classifications, update=True )
+        updating_loader = DataLoader( self.db, self.test_classifications, overwrite=True )
 
         self.load(['data/biblio_typical.json','data/chem_typical.tsv'], loader=updating_loader)
         self.verify_chem_mappings([ (1,9724,0,0,0,1,0,0), (1,23780,0,0,0,11,0,0),(1,23781,0,0,0,11,0,0),(1,25640,0,0,2,4,0,0) ], doc=1)
