@@ -37,46 +37,21 @@ def main():
     parser.add_argument('--db_name',     metavar='dn', type=str,  help='Database name (for connection string)',    default="XE")
     parser.add_argument('--working_dir', metavar='w',  type=str,  help='Working directory for downloaded files',   default="/tmp/schembl_ftp_data")
 
+    # Options that determine what is loaded
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('--date',         metavar='d',  type=str,  help='A date to extract from the front file, format: YYYYMMDD; defaults to today', default="today")
     group.add_argument('--year',         metavar='y',  type=str,  help='A year to extract from the back file, format: YYYY')
+    group.add_argument('--date',         metavar='d',  type=str,  help='A date to extract from the front file, format: YYYYMMDD; defaults to today', default="today")
+    group.add_argument('--input_dir',    metavar='f',  type=str,  help='A directory of pre-downloaded data files to load (e.g. for overwriting)')
+    parser.add_argument('--all',         help='Download all files, or just new files? Front file only',                     action="store_true")
 
-    # Flags to adjust loading behaviour
-    parser.add_argument('--all',          help='Download all files, or just new files? Front file only',                     action="store_true")
+    # Flags that determine how downloaded files are processed
     parser.add_argument('--overwrite',    help='Replace any existing document/chemistry records with newly downloaded data', action="store_true")
     parser.add_argument('--skip_titles',  help='Ignore titles when loading document metadata',                               action="store_true")
     parser.add_argument('--skip_classes', help='Ignore classifications when loading document metadata',                      action="store_true")
 
     args = parser.parse_args()
 
-    logger.info("Cleaning working directory")
-
-    call("rm {}/*biblio.json".format(args.working_dir), shell=True)
-    call("rm {}/*biblio.json.gz".format(args.working_dir), shell=True)
-    call("rm {}/*chemicals.tsv".format(args.working_dir), shell=True)
-    call("rm {}/*chemicals.tsv.gz".format(args.working_dir), shell=True)
-
-    logger.info("Discovering and downloading data files")
-
-    ftp = ftplib.FTP('ftp-private.ebi.ac.uk', args.ftp_user, args.ftp_pass)
-    reader = NewFileReader(ftp)
-
-    download_list = _get_files_retry(args, reader)
-
-    if len( download_list ) == 0:
-        logger.info("No files detected for download, exiting")
-        return
-
-    reader.read_files( download_list, args.working_dir )
-
-    logger.info("Download complete, unzipping contents of working directory")
-
-    if len( os.listdir(args.working_dir) ) == 0:
-        logger.error("Files were downloaded, but the working directory is empty")
-        raise RuntimeError( "Working directory [{}] is empty".format(args.working_dir) )
-
-    check_call("gunzip {}/*.gz".format(args.working_dir), shell=True)
-    downloads = os.listdir(args.working_dir)
+    input_files = _prepare_files(args)
 
     logger.info("Loading data files into DB")
 
@@ -88,10 +63,10 @@ def main():
                     overwrite=args.overwrite,
                     allow_doc_dups=True)
 
-        for bib_file in filter( lambda f: f.endswith("biblio.json"), downloads):
+        for bib_file in filter( lambda f: f.endswith("biblio.json"), input_files):
             loader.load_biblio( "{}/{}".format( args.working_dir,bib_file ) )
 
-        for chem_file in filter( lambda f: f.endswith("chemicals.tsv"), downloads):
+        for chem_file in filter( lambda f: f.endswith("chemicals.tsv"), input_files):
             loader.load_chems( "{}/{}".format( args.working_dir,chem_file ) )
 
         logger.info("Processing complete, exiting")
@@ -100,6 +75,55 @@ def main():
         # Specialized display handling for Oracle exceptions
         logger.error( "Oracle exception detected: {}".format( exc ) )
         raise
+
+def _prepare_files(args):
+
+    logger.info("Preparing working directory")
+
+    call("rm {}/*biblio.json".format(args.working_dir), shell=True)
+    call("rm {}/*biblio.json.gz".format(args.working_dir), shell=True)
+    call("rm {}/*chemicals.tsv".format(args.working_dir), shell=True)
+    call("rm {}/*chemicals.tsv.gz".format(args.working_dir), shell=True)
+
+    if args.file == None:
+
+        logger.info("Discovering and downloading data files")
+
+        ftp = ftplib.FTP('ftp-private.ebi.ac.uk', args.ftp_user, args.ftp_pass)
+        reader = NewFileReader(ftp)
+
+        download_list = _get_files_retry(args, reader)
+
+        if len( download_list ) == 0:
+            logger.info("No files detected for download, exiting")
+            sys.exit(0)
+
+        reader.read_files( download_list, args.working_dir )
+
+        if len( os.listdir(args.working_dir) ) == 0:
+            logger.error("Files were downloaded, but working directory is empty")
+            raise RuntimeError( "Working directory [{}] is empty".format(args.working_dir) )
+
+    else
+
+        logger.info("Copying input files into working directory")
+
+        if len ( os.listdir(args.input_dir) ) == 0:
+            logger.info("No files detected in input folder")
+
+        check_call("cp {}/* {}".format(args.input_dir, args.working_dir), shell=True)
+
+        if len( os.listdir(args.working_dir) ) == 0:
+            logger.warn("Empty working directory detected, exiting")
+            sys.exit(0)
+
+    logger.info("Unzipping contents of working directory")
+
+    check_call("gunzip {}/*.gz".format(args.working_dir), shell=True)
+
+    return os.listdir(args.working_dir)
+
+
 
 def _get_files_retry(args, reader):
     """
