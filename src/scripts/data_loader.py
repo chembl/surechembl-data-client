@@ -84,16 +84,16 @@ class DataLoader:
                  load_titles=True,
                  load_classifications=True,
                  update=False,
-                 allow_doc_dups=True,
-                 all_dup_doc_warnings=True):
+                 allow_doc_dups=True):
         """
         Create a new DataLoader.
         :param db: SQL Alchemy database connection.
         :param relevant_classes: List of document classification prefix strings to treat as relevant.
+        :param load_titles Flag indicating whether document titles should be loaded at all
+        :param load_classifications Flag indicating whether document classifications should be loaded at all
+        :param update Flag indicating if existing documents should be updated (results in all existing 
+            titles, classifications, and mappings being replaced for the document)
         :param allow_doc_dups: Flag indicating whether duplicate documents should be ignored
-
-
-
         """
 
         logger.info( "Life-sci relevant classes: {}".format(relevant_classes) )
@@ -105,7 +105,6 @@ class DataLoader:
         self.load_classifications = load_classifications
         self.update               = update
         self.allow_document_dups  = allow_doc_dups
-        self.all_dup_doc_warnings = all_dup_doc_warnings
 
         self.relevant_regex = re.compile( '|'.join(relevant_classes) )
 
@@ -193,11 +192,8 @@ class DataLoader:
         sql_alc_conn = self.db.connect()
         db_api_conn = sql_alc_conn.connection
 
-        doc_ins = self.docs.insert()
         title_ins = DBInserter(db_api_conn, 'insert into schembl_document_title (schembl_doc_id, lang, text) values (:1, :2, :3)')
         classes_ins = DBInserter(db_api_conn, 'insert into schembl_document_class (schembl_doc_id, class, system) values (:1, :2, :3)')
-
-
 
 
         #################################################
@@ -310,7 +306,7 @@ class DataLoader:
                     try:
 
                         start = time.time()
-                        result = sql_alc_conn.execute(doc_ins, record)
+                        result = sql_alc_conn.execute( self.docs.insert(), record )
                         end = time.time()
 
                         doc_insert_time += (end-start)
@@ -336,23 +332,44 @@ class DataLoader:
             logger.info("Insertion of {} documents completed, execution time {}".format(len(new_doc_mappings), doc_insert_time))
 
 
-            ##################################
-            # STEP 2.2: Bulk insert / update #
-            ##################################
+            ########################################
+            # STEP 2.2: Deal with document updates #
+            ########################################
 
             if len(update_docs) > 0:
 
+                transaction = sql_alc_conn.begin()
+
+                # Update the master record for the document that's being updated
                 stmt = self.docs.update().\
                     where(self.docs.c.id == bindparam('extant_id')).\
                     values(published=bindparam('new_published'), 
                            family_id=bindparam('new_family_id'), 
                            life_sci_relevant=bindparam('new_life_sci_relevant'))
 
-                transaction = sql_alc_conn.begin()
                 sql_alc_conn.execute(stmt, update_docs)
+
+                # Clean out ALL other references to the document, for re-insertion
+                delete_ids = [record['extant_id'] for record in update_docs]
+
+                stmt = self.titles.delete().where( self.titles.c.schembl_doc_id.in_( delete_ids ) )
+                sql_alc_conn.execute( stmt )
+
+                stmt = self.classes.delete().where( self.classes.c.schembl_doc_id.in_( delete_ids ) )
+                sql_alc_conn.execute( stmt )
+
+                # stmt = self.chem_mapping.delete().where( self.chem_mapping.c.schembl_doc_id.in_( delete_ids ) )
+                # sql_alc_conn.execute( stmt )
+
                 transaction.commit()
 
                 logger.info("Update of {} documents completed".format(len(update_docs)))
+
+
+            ########################################################
+            # STEP 2.3: Bulk insertion of titles / classifications #
+            ########################################################
+
 
             # Bulk insert titles and classification
             if self.load_titles:
