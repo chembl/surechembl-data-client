@@ -358,8 +358,8 @@ class DataLoader:
                 stmt = self.classes.delete().where( self.classes.c.schembl_doc_id.in_( delete_ids ) )
                 sql_alc_conn.execute( stmt )
 
-                # stmt = self.chem_mapping.delete().where( self.chem_mapping.c.schembl_doc_id.in_( delete_ids ) )
-                # sql_alc_conn.execute( stmt )
+                stmt = self.chem_mapping.delete().where( self.chem_mapping.c.schembl_doc_id.in_( delete_ids ) )
+                sql_alc_conn.execute( stmt )
 
                 transaction.commit()
 

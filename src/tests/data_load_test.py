@@ -156,18 +156,17 @@ class DataLoaderTests(unittest.TestCase):
 
     def test_replace_document(self):
         simple_loader = DataLoader( self.db, self.test_classifications, update=True )
-
         simple_loader.load_biblio( 'data/biblio_typical.json' )
+
         rows = self.query_all(['schembl_document']).fetchall()
         self.failUnlessEqual( 25, len(rows) )
-
         self.verify_doc( rows[0], (1,'WO-2013127697-A1',date(2013,9,6),0,47747634) )
         self.verify_doc( rows[18], (19,'WO-2013189302-A1',date(2013,12,27),0,49768126) )
 
         simple_loader.load_biblio( 'data/biblio_typical_update.json' )
+
         rows = self.query_all(['schembl_document']).fetchall()
         self.failUnlessEqual( 25, len(rows) )
-
         self.verify_doc( rows[0], (1,'WO-2013127697-A1',date(2013,9,5),0,47474747) )
         self.verify_doc( rows[18], (19,'WO-2013189302-A1',date(2013,12,31),1,47474748) ) # This record is now life-sci-relevant
 
@@ -175,14 +174,14 @@ class DataLoaderTests(unittest.TestCase):
     def test_replace_titles(self):
 
         # Covers deletion of obsolete titles, insertion of new titles, and modification of existing records
-        simple_loader = DataLoader( self.db, self.test_classifications, update=True )
+        updating_loader = DataLoader( self.db, self.test_classifications, update=True )
 
-        simple_loader.load_biblio( 'data/biblio_typical.json' )
+        updating_loader.load_biblio( 'data/biblio_typical.json' )
         self.verify_titles( 1, {'DE':u"VERWENDUNG EINES LATENTREAKTIVEN KLEBEFILMS ZUR VERKLEBUNG VON ELOXIERTEM ALUMINIUM MIT KUNSTSTOFF", 
                                 'FR':u"UTILISATION D'UN FILM ADHÉSIF À RÉACTIVITÉ LATENTE POUR LE COLLAGE DE PLASTIQUE SUR DE L'ALUMINIUM ANODISÉ",     
                                 'EN':u"USE OF A LATENTLY REACTIVE ADHESIVE FILM FOR ADHESIVE BONDING OF ELOXATED ALUMINIUM TO PLASTIC" } )
 
-        simple_loader.load_biblio( 'data/biblio_typical_update.json' )
+        updating_loader.load_biblio( 'data/biblio_typical_update.json' )
 
         self.verify_titles( 1, {'DE':u"Dis ist der neu titlen", 
                                 'ZH':u"寻设备息的传消呼方法和输" } )
@@ -190,16 +189,16 @@ class DataLoaderTests(unittest.TestCase):
     def test_replace_classes(self):
 
         # Covers deletion of obsolete classes, insertion of new classes, and modification of existing records
-        simple_loader = DataLoader( self.db, self.test_classifications, update=True )
+        updating_loader = DataLoader( self.db, self.test_classifications, update=True )
 
-        simple_loader.load_biblio( 'data/biblio_typical.json' )
+        updating_loader.load_biblio( 'data/biblio_typical.json' )
 
         self.verify_classes( 19, DocumentClass.IPC,  [])
         self.verify_classes( 19, DocumentClass.ECLA, [])
         self.verify_classes( 19, DocumentClass.IPCR, ["H04W 68/02"])
         self.verify_classes( 19, DocumentClass.CPC,  ["H04W 68/005"])
 
-        simple_loader.load_biblio( 'data/biblio_typical_update.json' )
+        updating_loader.load_biblio( 'data/biblio_typical_update.json' )
 
         self.verify_classes( 19, DocumentClass.IPC,  ["TEST_CLASS1"])                 # Doc now has one IPC class (insertion - life sci relevant)
         self.verify_classes( 19, DocumentClass.ECLA, ["H04W 76/02"])                  # Doc now has one ECLA class (insertion)
@@ -257,7 +256,6 @@ class DataLoaderTests(unittest.TestCase):
 
     def test_many_mappings(self):
         self.load(['data/biblio_typical.json','data/chem_typical.tsv'])
-        actual_rows = self.query_all(['schembl_document_chemistry']).fetchall()
 
         expected_data = [ (1,9724,0,0,0,1,0,0), (1,23780,0,0,0,11,0,0),(1,23781,0,0,0,11,0,0),(1,25640,0,0,2,4,0,0),
                           (6,61749,0,0,0,1,0,0), (6,1645,11,22,33,44,55,66), (6,15396,0,0,0,4,0,0),
@@ -270,7 +268,7 @@ class DataLoaderTests(unittest.TestCase):
                           (18,1645,11,22,33,44,55,66),
                           (20,1646,0,0,0,2,0,0),(20,2156,0,0,3,6,0,0), (20,2157,0,0,3,6,0,0), (20,2761,0,0,0,1,0,0), (20,2799,0,0,0,3,0,0), (20,3001,0,0,0,3,0,0), (20,3046,0,0,0,3,0,0), (20,3233,0,0,0,3,0,0), (20,3234,0,0,0,3,0,0), (20,3689,0,0,0,2,0,0)]
 
-        self.verify_chem_mappings(actual_rows, expected_data)
+        self.verify_chem_mappings(expected_data)
 
     def test_malformed_files(self):
         self.expect_runtime_error('data/chem_bad_header.tsv', "Malformed header detected in chemical data file")
@@ -279,7 +277,6 @@ class DataLoaderTests(unittest.TestCase):
 
     def test_duplicate_mappings(self):
         self.load(['data/biblio_typical.json','data/chem_dup_mappings.tsv'])
-        actual_rows = self.query_all(['schembl_document_chemistry']).fetchall()
 
         expected_data = [ (20,1646,0,0,0,2,0,0),
                           (1,9724,0,0,0,1,0,0),
@@ -287,7 +284,17 @@ class DataLoaderTests(unittest.TestCase):
                           (1,23781,0,0,0,11,0,0),
                           (18,1645,11,22,33,44,55,66)]
 
-        self.verify_chem_mappings(actual_rows, expected_data)
+        self.verify_chem_mappings(expected_data)
+
+    def test_replacement_mappings(self):
+        # Check that updating replaces mappings (deals with deletions, replacements, insertions)
+        updating_loader = DataLoader( self.db, self.test_classifications, update=True )
+
+        self.load(['data/biblio_typical.json','data/chem_typical.tsv'], loader=updating_loader)
+        self.verify_chem_mappings([ (1,9724,0,0,0,1,0,0), (1,23780,0,0,0,11,0,0),(1,23781,0,0,0,11,0,0),(1,25640,0,0,2,4,0,0) ], doc=1)
+
+        self.load(['data/biblio_typical_update.json','data/chem_typical_update.tsv'], loader=updating_loader)        
+        self.verify_chem_mappings([ (1,48,36,35,34,33,32,31), (1,23780,901,902,903,904,905,906), (1,10101010101,41,42,43,44,45,46) ], doc=1)
 
 
     ###### Various edge cases ######
@@ -296,22 +303,25 @@ class DataLoaderTests(unittest.TestCase):
         extra_loader.load_biblio( 'data/biblio_typical.json' )
         self.load(['data/biblio_typical.json', 'data/chem_single_row_alternative.tsv'])
 
-        rows = self.query_all(['schembl_document_chemistry']).fetchall()
-        self.verify_chem_mappings(rows, [ (15,7676,88,77,66,55,44,33) ])
+        self.verify_chem_mappings([ (15,7676,88,77,66,55,44,33) ])
 
 
-
-    ###### Support methods #######
+    ###################
+    # Support methods #
+    ###################
     def load_n_query(self, data_file, table=['schembl_document']):
         self.load([data_file])
         return self.query_all(table)
 
-    def load(self, file_names, def_chunk_parm=3):
+    def load(self, file_names, def_chunk_parm=3,loader=None):
+        if loader == None:
+            loader = self.loader
+
         for file_name in file_names:
             if "chem" in file_name:
-                self.loader.load_chems( file_name, chunksize=def_chunk_parm )
+                loader.load_chems( file_name, chunksize=def_chunk_parm )
             elif "biblio" in file_name:
-                self.loader.load_biblio( file_name, chunksize=def_chunk_parm )
+                loader.load_biblio( file_name, chunksize=def_chunk_parm )
 
     def query_all(self, table=['schembl_document']):
         s = select( [self.metadata.tables[table[0]]] )
@@ -374,20 +384,29 @@ class DataLoaderTests(unittest.TestCase):
             found_lang = row[1]
             self.verify_title(row, (doc, found_lang, titles[found_lang]) )
 
+    def verify_chem_mappings(self, expected_mappings, doc=None):
 
-    def verify_chem_mappings(self, actual_rows, expected_data):
-        doc_fields = (DocumentField.TITLE, DocumentField.ABSTRACT, DocumentField.CLAIMS,
+        doc_fields = (DocumentField.TITLE,       DocumentField.ABSTRACT, DocumentField.CLAIMS,
                       DocumentField.DESCRIPTION, DocumentField.IMAGES, DocumentField.ATTACHMENTS)
 
-        exp_rows = []
-        for expected in expected_data:
+        exp_data = dict()
+        for expected in expected_mappings:
             for doc_field, exp_freq in zip(doc_fields, expected[2:]):
-                exp_rows.append((expected[0], expected[1], doc_field, exp_freq))
+                exp_data[ (expected[0], expected[1], doc_field) ] = exp_freq
 
-        self.failUnlessEqual( len(exp_rows), len(actual_rows) )
+        if doc == None:
+            actual_rows = self.query_all(['schembl_document_chemistry']).fetchall()
+        else:
+            mapping_table = self.metadata.tables['schembl_document_chemistry']
+            s = select( [mapping_table] ).where( mapping_table.c.schembl_doc_id == doc )
+            actual_rows = self.db.execute(s).fetchall()
 
-        for exp_row, actual_row in zip(exp_rows, actual_rows):
-            self.verify_doc_chem(actual_row, exp_row)
+        self.failUnlessEqual( len(exp_data), len(actual_rows) )
+
+        for row in actual_rows:        
+            found_key = (row[0], row[1], row[2])
+            self.verify_doc_chem(row, found_key + ( exp_data[found_key], ) )
+
 
     def expect_runtime_error(self, file, expected_msg):
         try:
