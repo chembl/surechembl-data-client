@@ -98,7 +98,7 @@ To initiate data loading, use the following script:
 
     src/update.py
 
-The update script is designed three related tasks:
+The update script is designed for three related tasks:
 
 * To load 'back file' data to pre-populate the database with historic records 
 * To load 'front file' data on a daily basis
@@ -153,8 +153,8 @@ The following example shows how to load front file data for a given day:
 
     src/update.py FTPUSER FTPPASS DB_USER DB_PASS --date 20141127
 
-This command will look for **new data files that were extracted on the given day**, which are listed files called
-'newfiles.txt'; each front file day has a separate version of this file which will typically list data files
+This command will look for **new data files that were extracted on the given day**, which are listed in files called
+'newfiles.txt'; each front file day has a separate version of this file which lists data files
 for the day in question, plus supplementary data files for any of the past ten days.
 
 Omitting the --date parameter causes the script to look for new files extracted today, but there may be a delay
@@ -176,33 +176,35 @@ This command will load **data for all documents published on the given day**.
 ## Loading manually downloaded files
 
 Under some circumstances, it may be necessary to load a set of manually downloaded files, for example to
-apply a patch of update chemistry for previously loaded chemistry.
+apply a patch of updated chemistry for previously loaded chemistry.
 
 To load a set of files from a directory on the local system:
 
     src/update.py FTPUSER FTPPASS DB_USER DB_PASS --input_dir PATH
 
 Any files in the given folder will be copied to the working directory, and loaded into the database
-as if they were downloaded by the script.
+as if they were downloaded directly from the server.
+
+You may also wish to use the input_dir option in conjuction with the 'overwrite' flag. This will force the deletion of any existing data for documents in your input files, replacing the document chemistry mappings, titles, classifications, etc. 
 
 # General Guidance
 
 ## Insert vs Update
 
-The update script typically expects that the data being loaded is not already present in the database. 
+The update script has two modes of operation: **insertion only**, and **overwrite**.
 
-No attempt is made to delete existing records if referential integrity issues are detected; so if 
+### Insertion only mode
+
+In this mode, the script expects that the data being loaded is not already present in the database. 
+
+That is, no attempt is made to delete existing records if referential integrity issues are detected; so if 
 duplicate biblio data or document/chemistry mappings are detected, the original records will be retained.
 
-There are two situations where referential integrity errors are expected:
+### Overwrite mode
 
-* When (re)loading bibliographic data for supplementary front file updates. Here, integrity errors are discarded 
-because bibliographic data is not expected to change and the duplicates are simply re-processed for convenience.
+In this mode, the script will delete any existing data associated with documents that appear in the input data. 
 
-* When attributes for a document/chemical mapping change after the original extraction. This can happen when
-extra annotations are found for a given chemical, e.g. due to delayed image processing. Integrity errors are
-currently discarded in this case, so some document/chemical annotation counts may be out of date; however this
-only happens in a small fraction of cases when processing supplementary data.
+This includes doc/chemistry mappings, titles, and classifications but does NOT include the master record for the document, which is updated. This ensures that any references to the document (for example in derived data sets) will still be correct.
 
 ## Warnings
 
@@ -215,8 +217,17 @@ duplicates these are ignored, and are normally supressed.
 
     Integrity error ({ERROR}); data={RECORD}
 
-Indicates that an integrity error was detected while inserting some other data record. See 'Insert vs Update'
-above.
+Indicates that an integrity error was detected while inserting some other data record.
+
+There are two situations where referential integrity errors are expected:
+
+* When (re)loading bibliographic data for supplementary front file updates. Here, integrity errors are discarded 
+because bibliographic data is not expected to change and the duplicates are simply re-processed for convenience.
+
+* When attributes for a document/chemical mapping change after the original extraction. This can happen when
+extra annotations are found for a given chemical, e.g. due to delayed image processing. Integrity errors are
+currently discarded in this case, so some document/chemical annotation counts may be out of date; however this
+only happens in a small fraction of cases when processing supplementary data.
 
     KeyError detected when processing titles for {PUB NUMBER}; title language or text data may be missing
 
@@ -232,6 +243,10 @@ but is relatively low impact and thus non-terminal.
 
 Indicates that a document ID could not be resolved for the given publication number. This is not expected,
 but is relatively low impact and thus non-terminal.
+
+
+
+
 
 
 ## Data Coverage
