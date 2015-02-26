@@ -187,6 +187,8 @@ as if they were downloaded directly from the server.
 
 You may also wish to use the input_dir option in conjuction with the 'overwrite' flag. This will force the deletion of any existing data for documents in your input files, replacing the document chemistry mappings, titles, classifications, etc. 
 
+    src/update.py FTPUSER FTPPASS DB_USER DB_PASS --input_dir PATH --overwrite
+
 # General Guidance
 
 ## Insert vs Update
