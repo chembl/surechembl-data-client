@@ -4,7 +4,7 @@
 import logging
 import unittest
 from datetime import date
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, and_
 
 from src.scripts.data_loader import DataLoader, DocumentClass, DocumentField
 
@@ -296,6 +296,12 @@ class DataLoaderTests(unittest.TestCase):
         self.load(['data/biblio_typical_update.json','data/chem_typical_update.tsv'], loader=updating_loader)        
         self.verify_chem_mappings([ (1,48,36,35,34,33,32,31), (1,23780,901,902,903,904,905,906), (1,10101010101,41,42,43,44,45,46) ], doc=1)
 
+        self.verify_chemicals( 
+            { 10101010101: (459.45, 2930353, 0,0, 1.67, 1,1,1,0,
+                u"C[C@@H]1[C@H]2[C@H](O)[C@H]3[C@H](N(C)C)C(=C(C(=O)N)C(=O)[C@@]3(O)C(=C2C(=O)c4c(O)c(N)ccc14)O)O",
+                u"InChI=1S/C22H25N3O8/c1-6-7-4-5-8(23)15(26)10(7)16(27)11-9(6)17(28)13-14(25(2)3)18(29)12(21(24)32)20(31)22(13,33)19(11)30/h4-6,9,13-14,17,26,28-30,33H,23H2,1-3H3,(H2,24,32)/t6-,9+,13+,14-,17-,22-/m0/s1",
+                u"USMLMJGLDDOVEI-PLYBKPSTSA-N") } )
+
 
     ###### Various edge cases ######
     def test_chems_loaded_for_existing_docs(self):
@@ -384,6 +390,23 @@ class DataLoaderTests(unittest.TestCase):
             found_lang = row[1]
             self.check_title_row(row, (doc, found_lang, titles[found_lang]) )
 
+    def verify_chemicals(self, expected_chems):
+
+        chem_table   = self.metadata.tables['schembl_chemical']
+        struct_table = self.metadata.tables['schembl_chemical_structure']
+
+        s = select( [chem_table, struct_table] )\
+            .where( chem_table.c.id == struct_table.c.schembl_chem_id )\
+            .where( chem_table.c.id.in_(expected_chems.keys() ) )
+
+        rows = self.db.execute(s).fetchall()
+        self.failUnlessEqual( len(expected_chems), len(rows) )
+
+        for row in rows:
+            found_key = row[0]
+            self.check_chem_row(   row, (found_key,) + expected_chems[found_key][0:9] )
+            self.check_struct_row( row, (found_key,) + expected_chems[found_key][9:] )
+
     def verify_chem_mappings(self, expected_mappings, doc=None):
 
         doc_fields = (DocumentField.TITLE,       DocumentField.ABSTRACT, DocumentField.CLAIMS,
@@ -405,8 +428,7 @@ class DataLoaderTests(unittest.TestCase):
 
         for row in actual_rows:        
             found_key = (row[0], row[1], row[2])
-            self.check_mapping_row(row, found_key + ( exp_data[found_key], ) )
-
+            self.check_mapping_row(row, found_key + ( exp_data[found_key], ) )    
 
     def expect_runtime_error(self, file, expected_msg):
         try:
