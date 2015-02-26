@@ -98,13 +98,15 @@ To initiate data loading, use the following script:
 
     src/update.py
 
-The update script is designed for two specific tasks:
+The update script is designed three related tasks:
 
 * To load 'back file' data to pre-populate the database with historic records 
 * To load 'front file' data on a daily basis
+* To load manually downloaded chemistry data files into the database
 
 Back file loading should be performed once for each historic year, while front-file loading should be 
-performed every day.
+performed every day. Manual loading can be used to selectively load chemistry data files. Under typical operating 
+scenarios, only the first two tasks will be needed.
 
 The script requires a number of parameters. These are parsed and documented by Python's argparse library, so 
 a usage statement can be found by running the script with the -h argument. 
@@ -144,11 +146,6 @@ This command will retrieve all data files for the given year (from the back file
 Data records are typically added in batches for performance, and the script displays progress in the form of
 inserted record counts and timings.
 
-You may also want to provide the following parameter to ensure all warnings for duplicate bibliographic records
-are displayed. The warnings are summarised by default, because duplicate document records are only expected when 
-loading the front file data.
-
-    --all_dup_doc_warnings
 
 ## Loading the front file
 
@@ -176,6 +173,18 @@ If you wish to load all data for a given front file day, use the --all parameter
     
 This command will load **data for all documents published on the given day**.
 
+## Loading manually downloaded files
+
+Under some circumstances, it may be necessary to load a set of manually downloaded files, for example to
+apply a patch of update chemistry for previously loaded chemistry.
+
+To load a set of files from a directory on the local system:
+
+    src/update.py FTPUSER FTPPASS DB_USER DB_PASS --input_dir PATH
+
+Any files in the given folder will be copied to the working directory, and loaded into the database
+as if they were downloaded by the script.
+
 # General Guidance
 
 ## Insert vs Update
@@ -194,9 +203,6 @@ because bibliographic data is not expected to change and the duplicates are simp
 extra annotations are found for a given chemical, e.g. due to delayed image processing. Integrity errors are
 currently discarded in this case, so some document/chemical annotation counts may be out of date; however this
 only happens in a small fraction of cases when processing supplementary data.
-
-**Re-loading of existing data should be avoided for the back file**, instead, it's recommended that
-the database is cleared and re-loaded.
 
 ## Warnings
 
