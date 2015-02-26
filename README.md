@@ -229,6 +229,7 @@ extra annotations are found for a given chemical, e.g. due to delayed image proc
 currently discarded in this case, so some document/chemical annotation counts may be out of date; however this
 only happens in a small fraction of cases when processing supplementary data.
 
+
     KeyError detected when processing titles for {PUB NUMBER}; title language or text data may be missing
 
 Indicates that title or title language data was missing from the input bibliographic file. This is not expected,
@@ -243,10 +244,6 @@ but is relatively low impact and thus non-terminal.
 
 Indicates that a document ID could not be resolved for the given publication number. This is not expected,
 but is relatively low impact and thus non-terminal.
-
-
-
-
 
 
 ## Data Coverage
