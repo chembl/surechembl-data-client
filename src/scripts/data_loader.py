@@ -615,8 +615,6 @@ class DBInserter:
     def insert(self,data):
         """Insert the given data, in bulk"""
 
-        #transaction = self.conn.begin() - check if this is needed
-
         try:
 
             start = time.time()
