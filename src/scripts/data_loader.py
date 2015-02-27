@@ -409,7 +409,7 @@ class DataLoader:
         try:
             pubnumber = bib_scalar(bib, 'pubnumber')
             pubdate = datetime.strptime(bib_scalar(bib, 'pubdate'), '%Y%m%d')
-            family_id = bib_scalar(bib, 'family_id')
+            family_id = int(bib_scalar(bib, 'family_id'))
         except KeyError, exc:
             raise RuntimeError("Document is missing mandatory biblio field (KeyError: {})".format(exc))
         if len(pubnumber) == 0:
