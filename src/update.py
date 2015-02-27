@@ -85,7 +85,7 @@ def _prepare_files(args):
     call("rm {}/*chemicals.tsv".format(args.working_dir), shell=True)
     call("rm {}/*chemicals.tsv.gz".format(args.working_dir), shell=True)
 
-    if args.file == None:
+    if args.input_dir == None:
 
         logger.info("Discovering and downloading data files")
 
@@ -104,7 +104,7 @@ def _prepare_files(args):
             logger.error("Files were downloaded, but working directory is empty")
             raise RuntimeError( "Working directory [{}] is empty".format(args.working_dir) )
 
-    else
+    else:
 
         logger.info("Copying input files into working directory")
 
