@@ -303,13 +303,18 @@ class DataLoaderTests(unittest.TestCase):
                 u"USMLMJGLDDOVEI-PLYBKPSTSA-N") } )
 
 
-    ###### Various edge cases ######
+    ###### Various edge cases / bugs ######
     def test_chems_loaded_for_existing_docs(self):
         extra_loader = DataLoader( self.db, self.test_classifications )
         extra_loader.load_biblio( 'data/biblio_typical.json' )
         self.load(['data/biblio_typical.json', 'data/chem_single_row_alternative.tsv'])
 
         self.verify_chem_mappings([ (15,7676,88,77,66,55,44,33) ])
+
+    def test_bug_family_id_none_type(self):
+
+        row = self.load_n_query('data/biblio_bug_familyid_nonetype.json').fetchone()
+        self.check_doc_row(row, (1,'WO-2013127697-A1',date(2013,9,6),0,None))
 
 
     ###################

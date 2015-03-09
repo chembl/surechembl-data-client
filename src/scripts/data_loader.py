@@ -409,7 +409,8 @@ class DataLoader:
         try:
             pubnumber = bib_scalar(bib, 'pubnumber')
             pubdate = datetime.strptime(bib_scalar(bib, 'pubdate'), '%Y%m%d')
-            family_id = int(bib_scalar(bib, 'family_id'))
+            fam_raw = bib_scalar(bib, 'family_id')
+            family_id = int(fam_raw) if fam_raw != None else fam_raw
         except KeyError, exc:
             raise RuntimeError("Document is missing mandatory biblio field (KeyError: {})".format(exc))
         if len(pubnumber) == 0:
@@ -672,5 +673,4 @@ def chunks(l, n):
 def bib_scalar(biblio, key):
     """Retrieve the value of a scalar field from input biblio data"""
     return biblio[key][0]
-
 
