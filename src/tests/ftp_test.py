@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
 
+import logging
 import unittest
 import shutil
 import datetime
@@ -10,6 +11,8 @@ from mock import MagicMock, ANY
 from mock import call
 
 from src.scripts.new_file_reader import NewFileReader
+
+logging.basicConfig( format='%(asctime)s %(levelname)s %(name)s %(message)s', level=logging.DEBUG)
 
 chunked_file_list = ['''\
 path/to/file/1
