@@ -196,46 +196,33 @@ class DataLoader:
         classes_ins = DBInserter(db_api_conn, 'insert into schembl_document_class (schembl_doc_id, class, system) values (:1, :2, :3)')
 
 
-        #################################################
-        # STEP 1: See if document records already exist #
-        #################################################
+        ########################################################################
+        # STEP 1: If overwriting, find extant docs and pre-populate doc ID map #
+        ########################################################################
 
         extant_docs = set()
 
-        for chunk in chunks(biblio, chunksize):
+        if self.overwrite:
 
-            # Loop over all biblio entries in this chunk
-            doc_nums = set()
-            for bib in chunk[1]:
+            for chunk in chunks(biblio, chunksize):
 
-                input_pubnum = self._extract_pubnumber(bib)
+                # Loop over all biblio entries in this chunk
+                doc_nums = set()
+                for bib in chunk[1]:
 
-                # Early return: don't bother querying if we already have an ID
-                if input_pubnum in self.doc_id_map:
-                    extant_docs.add( input_pubnum ) 
+                    input_pubnum = self._extract_pubnumber(bib)
+
+                    # Early return: don't bother querying if we already have an ID
+                    if input_pubnum in self.doc_id_map:
+                        extant_docs.add( input_pubnum ) 
+                        continue
+
+                    doc_nums.add(input_pubnum)
+
+                if len(doc_nums) == 0:
                     continue
 
-                doc_nums.add(input_pubnum)
-
-            if len(doc_nums) == 0:
-                continue
-
-            logger.debug( "Retrieving primary key IDs for {} existing publication numbers".format(len(doc_nums)) )
-
-            # Hit the DB for the chosen pub numbers
-            sel = select( [self.docs.c.scpn, self.docs.c.id] )\
-                  .where( (self.docs.c.scpn.in_(doc_nums)) )
-
-            result = sql_alc_conn.execute(sel)
-            found_docs = result.fetchall()
-
-            # Add any discovered document IDs to the global map;
-            # add any discovered document IDs to extant set for this input file
-            for found_doc in found_docs:
-                self.doc_id_map[ found_doc[0] ] = found_doc[1]
-                extant_docs.add( found_doc[0] )
-
-            logger.debug( "Known documents IDs now at: {}".format(len(self.doc_id_map)) )
+                self._fill_doc_id_map(doc_nums, sql_alc_conn, extant_docs)
 
 
         ########################################################
@@ -246,13 +233,15 @@ class DataLoader:
 
             logger.debug( "Processing biblio data to index {}".format(chunk[0]) )
 
-            new_doc_mappings = dict()
+            new_doc_mappings = dict()   # Collection IDs for totally new document 
+            overwrite_docs   = []       # Document records for overwriting
+            duplicate_docs   = set()    # Set of duplicates detected (when overwrite turned off)
 
-            overwrite_docs = []
             new_titles = []
             new_classes = []        
 
             doc_insert_time = 0
+
 
             transaction = sql_alc_conn.begin()
 
@@ -271,28 +260,15 @@ class DataLoader:
                 # Step 2.2 Overwrite or Insert the document record #
                 ####################################################
 
-                if pubnumber in extant_docs:
+                if self.overwrite and pubnumber in extant_docs:
 
-                    if self.overwrite:
-
-                        # Create an overwrite record
-                        doc_id = self.doc_id_map[pubnumber]                    
-                        overwrite_docs.append({
-                            'extant_id'             : doc_id,
-                            'new_published'         : pubdate,
-                            'new_family_id'         : family_id,
-                            'new_life_sci_relevant' : life_sci_relevant })
-
-                    elif not self.allow_document_dups:
-
-                        # We're not updating, and duplicates have been disallowed - exception 
-                        raise RuntimeError(
-                            "Input document {} already exists in the database, and allow_document_dups = False".format(pubnumber))
-
-                    else:
-
-                        # We're not updating, but duplicates are OK - move on
-                        continue
+                    # Create an overwrite record
+                    doc_id = self.doc_id_map[pubnumber]                    
+                    overwrite_docs.append({
+                        'extant_id'             : doc_id,
+                        'new_published'         : pubdate,
+                        'new_family_id'         : family_id,
+                        'new_life_sci_relevant' : life_sci_relevant })
 
                 else:
 
@@ -315,10 +291,19 @@ class DataLoader:
 
                         if exc.__class__.__name__ != "IntegrityError":
                             raise
+
+                        elif self.allow_document_dups:
+
+                            # It's an integrity error, and duplicates are allowed.
+                            duplicate_docs.add(pubnumber)                    
+                            continue             
+
                         else:
+
                             raise RuntimeError(
                                 "An Integrity error was detected when inserting document {}. This "\
-                                "indicates insertion of a document that already exists - this should not happen".format(pubnumber))
+                                "indicates insertion of an existing document, but duplicates have been disallowed".format(pubnumber))
+
 
                     doc_id = result.inserted_primary_key[0] # Single PK
                     new_doc_mappings[pubnumber] = doc_id
@@ -332,9 +317,9 @@ class DataLoader:
             logger.info("Insertion of {} documents completed, execution time {}".format(len(new_doc_mappings), doc_insert_time))
 
 
-            ###########################################
-            # STEP 2.2: Deal with document overwrites #
-            ###########################################
+            ########################################################
+            # STEP 2.2: Deal with document overwrites / duplicates #
+            ########################################################
 
             if len(overwrite_docs) > 0:
 
@@ -365,6 +350,8 @@ class DataLoader:
 
                 logger.info("{} documents overwritten (i.e. master doc record updated, all other references deleted)".format(len(overwrite_docs)))
 
+            if len(duplicate_docs) > 0:
+                self._fill_doc_id_map(duplicate_docs, sql_alc_conn)
 
             ########################################################
             # STEP 2.3: Bulk insertion of titles / classifications #
@@ -390,7 +377,27 @@ class DataLoader:
 
         logger.info("Biblio import completed" )
 
+    def _fill_doc_id_map(self, pub_nums, sql_alc_conn, extant_docs=None):
 
+        logger.debug( "Retrieving primary key IDs for {} existing publication numbers".format( len(pub_nums)) )
+
+        found_docs_count = 0
+
+        # Hit the DB for the chosen pub numbers
+        sel = select( [self.docs.c.scpn, self.docs.c.id] )\
+              .where( (self.docs.c.scpn.in_(pub_nums)) )
+
+        result = sql_alc_conn.execute(sel)
+        result_rows = result.fetchall()
+
+        # Add any discovered document IDs to the global map;
+        for found_doc in result_rows:
+            self.doc_id_map[ found_doc[0] ] = found_doc[1]
+            found_docs_count += 1
+            if extant_docs != None:
+                extant_docs.add( found_doc[0] )
+
+        logger.debug( "Found {} documents IDs, total known count: {}".format( found_docs_count, len(self.doc_id_map) ) )        
 
 
     def _extract_pubnumber(self, bib):

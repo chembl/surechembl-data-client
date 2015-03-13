@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, select, and_
 
 from src.scripts.data_loader import DataLoader, DocumentClass, DocumentField
 
-logging.basicConfig( format='%(asctime)s %(levelname)s %(name)s %(message)s', level=logging.ERROR)
+logging.basicConfig( format='%(asctime)s %(levelname)s %(name)s %(message)s', level=logging.DEBUG)
 
 class DataLoaderTests(unittest.TestCase):
 
@@ -54,7 +54,10 @@ class DataLoaderTests(unittest.TestCase):
             DataLoader( self.db, self.test_classifications, allow_doc_dups=False ).load_biblio('data/biblio_typical.json')
             self.fail("Exception was expected")
         except RuntimeError,exc:
-            self.failUnlessEqual("Input document WO-2013127697-A1 already exists in the database, and allow_document_dups = False", exc.message)
+            self.failUnlessEqual("An Integrity error was detected when inserting document WO-2013127697-A1. This indicates "\
+                                 "insertion of an existing document, but duplicates have been disallowed", exc.message)
+
+
 
     def test_sequence_definitions(self):
         mdata = self.loader.db_metadata()
