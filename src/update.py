@@ -67,7 +67,10 @@ def main():
             loader.load_biblio( "{}/{}".format( args.working_dir,bib_file ) )
 
         for chem_file in filter( lambda f: f.endswith("chemicals.tsv"), input_files):
-            loader.load_chems( "{}/{}".format( args.working_dir,chem_file ) )
+            update = "supp" in chem_file
+            if update:
+                logger.info("Supplementary chemical file detected - using update mode for mappings")
+            loader.load_chems( "{}/{}".format( args.working_dir,chem_file ), update )
 
         logger.info("Processing complete, exiting")
 

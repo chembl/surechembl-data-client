@@ -290,20 +290,47 @@ class DataLoaderTests(unittest.TestCase):
         self.verify_chem_mappings(expected_data)
 
     def test_replacement_mappings(self):
-        # Check that updating replaces mappings (deals with deletions, replacements, insertions)
-        updating_loader = DataLoader( self.db, self.test_classifications, overwrite=True )
-
-        self.load(['data/biblio_typical.json','data/chem_typical.tsv'], loader=updating_loader)
-        self.verify_chem_mappings([ (1,9724,0,0,0,1,0,0), (1,23780,0,0,0,11,0,0),(1,23781,0,0,0,11,0,0),(1,25640,0,0,2,4,0,0) ], doc=1)
+        
+        updating_loader = self.prepare_updatable_db(True)
 
         self.load(['data/biblio_typical_update.json','data/chem_typical_update.tsv'], loader=updating_loader)        
-        self.verify_chem_mappings([ (1,48,36,35,34,33,32,31), (1,23780,901,902,903,904,905,906), (1,10101010101,41,42,43,44,45,46) ], doc=1)
+        self.verify_chem_mappings([ (1,48,36,35,34,33,32,31),                       # New
+                                    (1,23780,901,902,903,904,905,906),              # Updated
+                                    (1,10101010101,41,42,43,44,45,46) ], doc=1)     # New
+                                    # Note that 9724, 23781, and 25640 are gone
 
         self.verify_chemicals( 
             { 10101010101: (459.45, 2930353, 0,0, 1.67, 1,1,1,0,
                 u"C[C@@H]1[C@H]2[C@H](O)[C@H]3[C@H](N(C)C)C(=C(C(=O)N)C(=O)[C@@]3(O)C(=C2C(=O)c4c(O)c(N)ccc14)O)O",
                 u"InChI=1S/C22H25N3O8/c1-6-7-4-5-8(23)15(26)10(7)16(27)11-9(6)17(28)13-14(25(2)3)18(29)12(21(24)32)20(31)22(13,33)19(11)30/h4-6,9,13-14,17,26,28-30,33H,23H2,1-3H3,(H2,24,32)/t6-,9+,13+,14-,17-,22-/m0/s1",
                 u"USMLMJGLDDOVEI-PLYBKPSTSA-N") } )
+
+    def test_update_mappings(self):
+        
+        updating_loader = self.prepare_updatable_db(False)
+
+        self.load(['data/biblio_typical_update.json','data/chem_typical_update.tsv'], update_mappings=True, loader=updating_loader)        
+        self.verify_chem_mappings([ (1,48,36,35,34,33,32,31),                       # New 
+                                    (1,9724,0,0,0,1,0,0),                           # Untouched
+                                    (1,23780,901,902,903,904,905,906),              # Updated
+                                    (1,23781,0,0,0,11,0,0),                         # Untouched
+                                    (1,25640,0,0,2,4,0,0),                          # Untouched
+                                    (1,10101010101,41,42,43,44,45,46) ], doc=1)     # New
+
+        self.verify_chemicals( 
+            { 10101010101: (459.45, 2930353, 0,0, 1.67, 1,1,1,0,
+                u"C[C@@H]1[C@H]2[C@H](O)[C@H]3[C@H](N(C)C)C(=C(C(=O)N)C(=O)[C@@]3(O)C(=C2C(=O)c4c(O)c(N)ccc14)O)O",
+                u"InChI=1S/C22H25N3O8/c1-6-7-4-5-8(23)15(26)10(7)16(27)11-9(6)17(28)13-14(25(2)3)18(29)12(21(24)32)20(31)22(13,33)19(11)30/h4-6,9,13-14,17,26,28-30,33H,23H2,1-3H3,(H2,24,32)/t6-,9+,13+,14-,17-,22-/m0/s1",
+                u"USMLMJGLDDOVEI-PLYBKPSTSA-N") } )
+
+
+    def prepare_updatable_db(self, overwrite_mode):
+        updating_loader = DataLoader( self.db, self.test_classifications, overwrite=overwrite_mode )
+        self.load(['data/biblio_typical.json','data/chem_typical.tsv'], loader=updating_loader)
+        self.verify_chem_mappings([ (1,9724,0,0,0,1,0,0), (1,23780,0,0,0,11,0,0),(1,23781,0,0,0,11,0,0),(1,25640,0,0,2,4,0,0) ], doc=1)
+
+        return updating_loader
+
 
 
     ###### Various edge cases / bugs ######
@@ -327,15 +354,15 @@ class DataLoaderTests(unittest.TestCase):
         self.load([data_file])
         return self.query_all(table)
 
-    def load(self, file_names, def_chunk_parm=3,loader=None):
+    def load(self, file_names, def_chunk_parm=3, loader=None, update_mappings=False ):
         if loader == None:
             loader = self.loader
 
         for file_name in file_names:
-            if "chem" in file_name:
-                loader.load_chems( file_name, chunksize=def_chunk_parm )
-            elif "biblio" in file_name:
+            if "biblio" in file_name:
                 loader.load_biblio( file_name, chunksize=def_chunk_parm )
+            elif "chem" in file_name:
+                loader.load_chems( file_name, update_mappings, chunksize=def_chunk_parm )
 
     def query_all(self, table=['schembl_document']):
         s = select( [self.metadata.tables[table[0]]] )
