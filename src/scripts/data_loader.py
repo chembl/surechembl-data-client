@@ -495,7 +495,7 @@ class DataLoader:
 
         chem_ins = DBBatcher(db_api_conn, 'insert into schembl_chemical (id, mol_weight, logp, med_chem_alert, is_relevant, donor_count, acceptor_count, ring_count, rot_bond_count, corpus_count) values (:1, :2, :3, :4, :5, :6, :7, :8, :9, :10)')
         chem_struc_ins = DBBatcher(db_api_conn, 'insert into schembl_chemical_structure (schembl_chem_id, smiles, std_inchi, std_inchikey) values (:1, :2, :3, :4)', self.chem_struc_types)
-        chem_map_del = DBBatcher(db_api_conn, 'delete from schembl_document_chemistry where schembl_doc_id = :1 and schembl_chem_id = :2 and field = :3 and (:4 + 1)')
+        chem_map_del = DBBatcher(db_api_conn, 'delete from schembl_document_chemistry where schembl_doc_id = :1 and schembl_chem_id = :2 and field = :3 and (:4 > -1)')
         chem_map_ins = DBBatcher(db_api_conn, 'insert into schembl_document_chemistry (schembl_doc_id, schembl_chem_id, field, frequency) values (:1, :2, :3, :4)')
 
         chunk = []
@@ -637,7 +637,7 @@ class DBBatcher:
 
             end = time.time()
 
-            logger.info("Operation [{}] took {} seconds; {} records loaded".format(self.operation, end-start, len(data)))
+            logger.info("Operation [{}] took {} seconds; {} operations processed".format(self.operation, end-start, len(data)))
 
         except Exception, exc:
 
