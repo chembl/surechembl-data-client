@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, select, and_
 
 from src.scripts.data_loader import DataLoader, DocumentClass, DocumentField
 
-logging.basicConfig( format='%(asctime)s %(levelname)s %(name)s %(message)s', level=logging.DEBUG)
+logging.basicConfig( format='%(asctime)s %(levelname)s %(name)s %(message)s', level=logging.INFO)
 
 class DataLoaderTests(unittest.TestCase):
 
@@ -228,7 +228,7 @@ class DataLoaderTests(unittest.TestCase):
         # Load chemical data, and check:
         # 1) Many structures loaded, 2) duplicates handled, 3) Various values (negation etc) 4) chunking
         # Rows are assumed to be in insertion order, matching input file
-        self.load( ['data/biblio_typical.json','data/chem_typical.tsv'], 7 )
+        self.load( ['data/biblio_typical.json','data/chem_typical.tsv'], chunk_parm=7 )
 
         chem_table   = self.metadata.tables['schembl_chemical']
         struct_table = self.metadata.tables['schembl_chemical_structure']
@@ -309,7 +309,7 @@ class DataLoaderTests(unittest.TestCase):
         
         updating_loader = self.prepare_updatable_db(False)
 
-        self.load(['data/biblio_typical_update.json','data/chem_typical_update.tsv'], update_mappings=True, loader=updating_loader)        
+        self.load(['data/biblio_typical_update.json','data/chem_typical_update.tsv'], preload_docs=True, update_mappings=True, loader=updating_loader)        
         self.verify_chem_mappings([ (1,48,36,35,34,33,32,31),                       # New 
                                     (1,9724,0,0,0,1,0,0),                           # Untouched
                                     (1,23780,901,902,903,904,905,906),              # Updated
@@ -354,15 +354,18 @@ class DataLoaderTests(unittest.TestCase):
         self.load([data_file])
         return self.query_all(table)
 
-    def load(self, file_names, def_chunk_parm=3, loader=None, update_mappings=False ):
+    def load(self, file_names, chunk_parm=3, loader=None, preload_docs=False, update_mappings=False ):
         if loader == None:
             loader = self.loader
 
+        docu_kwargs = {'chunksize':chunk_parm, 'preload_ids':preload_docs}
+        chem_kwargs = {'chunksize':chunk_parm}
+
         for file_name in file_names:
             if "biblio" in file_name:
-                loader.load_biblio( file_name, chunksize=def_chunk_parm )
+                loader.load_biblio( file_name, **docu_kwargs )
             elif "chem" in file_name:
-                loader.load_chems( file_name, update_mappings, chunksize=def_chunk_parm )
+                loader.load_chems( file_name, update_mappings, **chem_kwargs )
 
     def query_all(self, table=['schembl_document']):
         s = select( [self.metadata.tables[table[0]]] )

@@ -176,7 +176,7 @@ class DataLoader:
         return self.relevant_classes
 
 
-    def load_biblio(self, file_name, chunksize=1000):
+    def load_biblio(self, file_name, preload_ids=False, chunksize=1000):
         """
         Load bibliographic data into the database. Identifiers for new documents will be retained
         for reference by the load_chems method.
@@ -184,7 +184,7 @@ class DataLoader:
         :param chunksize: Processing chunk size, affecting bulk insertion of some records.
         """
 
-        logger.info( "Loading biblio data from [{}]".format(file_name) )
+        logger.info( "Loading biblio data from [{}], with chunk size {}. Preload IDs? {}".format(file_name, chunksize, preload_ids) )
 
         input_file = codecs.open(file_name, 'r', 'utf-8')
         biblio = json.load(input_file)
@@ -202,7 +202,7 @@ class DataLoader:
 
         extant_docs = set()
 
-        if self.overwrite:
+        if self.overwrite or preload_ids:
 
             for chunk in chunks(biblio, chunksize):
 
@@ -224,6 +224,8 @@ class DataLoader:
 
                 self._fill_doc_id_map(doc_nums, sql_alc_conn, extant_docs)
 
+            logger.info( "Discovered {} existing IDs for {} input documents".format( len(extant_docs),len(biblio)) )
+
 
         ########################################################
         # STEP 2: Main biblio record processing loop (chunked) #
@@ -231,11 +233,12 @@ class DataLoader:
 
         for chunk in chunks(biblio, chunksize):
 
-            logger.debug( "Processing biblio data to index {}".format(chunk[0]) )
+            logger.debug( "Processing {} biblio records, up to index {}".format(len(chunk[1]), chunk[0]) )
 
             new_doc_mappings = dict()   # Collection IDs for totally new document 
             overwrite_docs   = []       # Document records for overwriting
-            duplicate_docs   = set()    # Set of duplicates detected (when overwrite turned off)
+            duplicate_docs   = set()    # Set of duplicates to read IDs for
+            known_count      = 0        # Count of known documents
 
             new_titles = []
             new_classes = []        
@@ -260,15 +263,21 @@ class DataLoader:
                 # Step 2.2 Overwrite or Insert the document record #
                 ####################################################
 
-                if self.overwrite and pubnumber in extant_docs:
+                if pubnumber in extant_docs:
 
-                    # Create an overwrite record
-                    doc_id = self.doc_id_map[pubnumber]                    
-                    overwrite_docs.append({
-                        'extant_id'             : doc_id,
-                        'new_published'         : pubdate,
-                        'new_family_id'         : family_id,
-                        'new_life_sci_relevant' : life_sci_relevant })
+                    known_count += 1
+
+                    if self.overwrite:
+                        # Create an overwrite record
+                        doc_id = self.doc_id_map[pubnumber]                    
+                        overwrite_docs.append({
+                            'extant_id'             : doc_id,
+                            'new_published'         : pubdate,
+                            'new_family_id'         : family_id,
+                            'new_life_sci_relevant' : life_sci_relevant })
+                    else:
+                        # The document is known, and we're not overwriting: skip
+                        continue
 
                 else:
 
@@ -295,6 +304,7 @@ class DataLoader:
                         elif self.allow_document_dups:
 
                             # It's an integrity error, and duplicates are allowed.
+                            known_count += 1
                             duplicate_docs.add(pubnumber)                    
                             continue             
 
@@ -314,7 +324,7 @@ class DataLoader:
             transaction.commit()
             self.doc_id_map.update(new_doc_mappings)
 
-            logger.info("Insertion of {} documents completed, execution time {}".format(len(new_doc_mappings), doc_insert_time))
+            logger.info("Processed {} document records: {} new, {} duplicates. DB insertion time = {:.3f}".format( len(chunk[1]), len(new_doc_mappings), known_count, doc_insert_time))
 
 
             ########################################################
@@ -348,10 +358,12 @@ class DataLoader:
 
                 transaction.commit()
 
-                logger.info("{} documents overwritten (i.e. master doc record updated, all other references deleted)".format(len(overwrite_docs)))
+                logger.info("Overwrote {} duplicate documents (master doc record updated, all other references deleted)".format(len(overwrite_docs)))
 
             if len(duplicate_docs) > 0:
                 self._fill_doc_id_map(duplicate_docs, sql_alc_conn)
+
+                logger.info("Read {} IDs for duplicate documents".format(len(duplicate_docs)))
 
             ########################################################
             # STEP 2.3: Bulk insertion of titles / classifications #
@@ -637,7 +649,7 @@ class DBBatcher:
 
             end = time.time()
 
-            logger.info("Operation [{}] took {} seconds; {} operations processed".format(self.operation, end-start, len(data)))
+            logger.info("Operation [{}] took {:.3f} seconds; {} operations processed".format(self.operation, end-start, len(data)))
 
         except Exception, exc:
 
