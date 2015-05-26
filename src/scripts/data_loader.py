@@ -176,7 +176,7 @@ class DataLoader:
         return self.relevant_classes
 
 
-    def load_biblio(self, file_name, chunksize=1000):
+    def load_biblio(self, file_name, preload_ids=False, chunksize=1000):
         """
         Load bibliographic data into the database. Identifiers for new documents will be retained
         for reference by the load_chems method.
@@ -184,7 +184,7 @@ class DataLoader:
         :param chunksize: Processing chunk size, affecting bulk insertion of some records.
         """
 
-        logger.info( "Loading biblio data from [{}]".format(file_name) )
+        logger.info( "Loading biblio data from [{}], with chunk size {}. Preload IDs? {}".format(file_name, chunksize, preload_ids) )
 
         input_file = codecs.open(file_name, 'r', 'utf-8')
         biblio = json.load(input_file)
@@ -192,8 +192,8 @@ class DataLoader:
         sql_alc_conn = self.db.connect()
         db_api_conn = sql_alc_conn.connection
 
-        title_ins = DBInserter(db_api_conn, 'insert into schembl_document_title (schembl_doc_id, lang, text) values (:1, :2, :3)')
-        classes_ins = DBInserter(db_api_conn, 'insert into schembl_document_class (schembl_doc_id, class, system) values (:1, :2, :3)')
+        title_ins = DBBatcher(db_api_conn, 'insert into schembl_document_title (schembl_doc_id, lang, text) values (:1, :2, :3)')
+        classes_ins = DBBatcher(db_api_conn, 'insert into schembl_document_class (schembl_doc_id, class, system) values (:1, :2, :3)')
 
 
         ########################################################################
@@ -202,7 +202,7 @@ class DataLoader:
 
         extant_docs = set()
 
-        if self.overwrite:
+        if self.overwrite or preload_ids:
 
             for chunk in chunks(biblio, chunksize):
 
@@ -224,6 +224,8 @@ class DataLoader:
 
                 self._fill_doc_id_map(doc_nums, sql_alc_conn, extant_docs)
 
+            logger.info( "Discovered {} existing IDs for {} input documents".format( len(extant_docs),len(biblio)) )
+
 
         ########################################################
         # STEP 2: Main biblio record processing loop (chunked) #
@@ -231,11 +233,12 @@ class DataLoader:
 
         for chunk in chunks(biblio, chunksize):
 
-            logger.debug( "Processing biblio data to index {}".format(chunk[0]) )
+            logger.debug( "Processing {} biblio records, up to index {}".format(len(chunk[1]), chunk[0]) )
 
             new_doc_mappings = dict()   # Collection IDs for totally new document 
             overwrite_docs   = []       # Document records for overwriting
-            duplicate_docs   = set()    # Set of duplicates detected (when overwrite turned off)
+            duplicate_docs   = set()    # Set of duplicates to read IDs for
+            known_count      = 0        # Count of known documents
 
             new_titles = []
             new_classes = []        
@@ -260,15 +263,21 @@ class DataLoader:
                 # Step 2.2 Overwrite or Insert the document record #
                 ####################################################
 
-                if self.overwrite and pubnumber in extant_docs:
+                if pubnumber in extant_docs:
 
-                    # Create an overwrite record
-                    doc_id = self.doc_id_map[pubnumber]                    
-                    overwrite_docs.append({
-                        'extant_id'             : doc_id,
-                        'new_published'         : pubdate,
-                        'new_family_id'         : family_id,
-                        'new_life_sci_relevant' : life_sci_relevant })
+                    known_count += 1
+
+                    if self.overwrite:
+                        # Create an overwrite record
+                        doc_id = self.doc_id_map[pubnumber]                    
+                        overwrite_docs.append({
+                            'extant_id'             : doc_id,
+                            'new_published'         : pubdate,
+                            'new_family_id'         : family_id,
+                            'new_life_sci_relevant' : life_sci_relevant })
+                    else:
+                        # The document is known, and we're not overwriting: skip
+                        continue
 
                 else:
 
@@ -295,6 +304,7 @@ class DataLoader:
                         elif self.allow_document_dups:
 
                             # It's an integrity error, and duplicates are allowed.
+                            known_count += 1
                             duplicate_docs.add(pubnumber)                    
                             continue             
 
@@ -314,7 +324,7 @@ class DataLoader:
             transaction.commit()
             self.doc_id_map.update(new_doc_mappings)
 
-            logger.info("Insertion of {} documents completed, execution time {}".format(len(new_doc_mappings), doc_insert_time))
+            logger.info("Processed {} document records: {} new, {} duplicates. DB insertion time = {:.3f}".format( len(chunk[1]), len(new_doc_mappings), known_count, doc_insert_time))
 
 
             ########################################################
@@ -348,10 +358,12 @@ class DataLoader:
 
                 transaction.commit()
 
-                logger.info("{} documents overwritten (i.e. master doc record updated, all other references deleted)".format(len(overwrite_docs)))
+                logger.info("Overwrote {} duplicate documents (master doc record updated, all other references deleted)".format(len(overwrite_docs)))
 
             if len(duplicate_docs) > 0:
                 self._fill_doc_id_map(duplicate_docs, sql_alc_conn)
+
+                logger.info("Read {} IDs for duplicate documents".format(len(duplicate_docs)))
 
             ########################################################
             # STEP 2.3: Bulk insertion of titles / classifications #
@@ -360,11 +372,11 @@ class DataLoader:
 
             # Bulk insert titles and classification
             if self.load_titles:
-                title_ins.insert(new_titles)
+                title_ins.execute(new_titles)
                 logger.debug("Insertion of {} titles completed".format(len(new_titles)) )
 
             if self.load_classifications:
-                classes_ins.insert(new_classes)
+                classes_ins.execute(new_classes)
                 logger.debug("Insertion of {} classification completed".format(len(new_classes)) )
 
         # END of main biblio processing loop
@@ -476,7 +488,7 @@ class DataLoader:
 
 
 
-    def load_chems(self, file_name, chunksize=1000):
+    def load_chems(self, file_name, update_mappings, chunksize=1000):
         """
         Load document chemistry data into the database. Assumes that document IDs for new document-chemistry
         have been made available as part of a previous processing step (by load_biblio)!
@@ -493,9 +505,10 @@ class DataLoader:
         sql_alc_conn = self.db.connect()
         db_api_conn = sql_alc_conn.connection
 
-        chem_ins = DBInserter(db_api_conn, 'insert into schembl_chemical (id, mol_weight, logp, med_chem_alert, is_relevant, donor_count, acceptor_count, ring_count, rot_bond_count, corpus_count) values (:1, :2, :3, :4, :5, :6, :7, :8, :9, :10)')
-        chem_struc_ins = DBInserter(db_api_conn, 'insert into schembl_chemical_structure (schembl_chem_id, smiles, std_inchi, std_inchikey) values (:1, :2, :3, :4)', self.chem_struc_types)
-        chem_map_ins = DBInserter(db_api_conn, 'insert into schembl_document_chemistry (schembl_doc_id, schembl_chem_id, field, frequency) values (:1, :2, :3, :4)')
+        chem_ins = DBBatcher(db_api_conn, 'insert into schembl_chemical (id, mol_weight, logp, med_chem_alert, is_relevant, donor_count, acceptor_count, ring_count, rot_bond_count, corpus_count) values (:1, :2, :3, :4, :5, :6, :7, :8, :9, :10)')
+        chem_struc_ins = DBBatcher(db_api_conn, 'insert into schembl_chemical_structure (schembl_chem_id, smiles, std_inchi, std_inchikey) values (:1, :2, :3, :4)', self.chem_struc_types)
+        chem_map_del = DBBatcher(db_api_conn, 'delete from schembl_document_chemistry where schembl_doc_id = :1 and schembl_chem_id = :2 and field = :3 and (:4 > -1)')
+        chem_map_ins = DBBatcher(db_api_conn, 'insert into schembl_document_chemistry (schembl_doc_id, schembl_chem_id, field, frequency) values (:1, :2, :3, :4)')
 
         chunk = []
 
@@ -509,17 +522,18 @@ class DataLoader:
 
             if (i % chunksize == 0 and i > 0):
                 logger.debug( "Processing chem-mapping data to index {}".format(i) )
-                self._process_chem_rows(sql_alc_conn, chem_ins, chem_struc_ins, chem_map_ins, chunk)
+                self._process_chem_rows(sql_alc_conn, update_mappings, chem_ins, chem_struc_ins, chem_map_del, chem_map_ins, chunk)
                 del chunk[:]
 
             chunk.append(row)
 
         logger.debug( "Processing chem-mapping data to index {} (final)".format(i) )
-        self._process_chem_rows(sql_alc_conn, chem_ins, chem_struc_ins, chem_map_ins, chunk)
+        self._process_chem_rows(sql_alc_conn, update_mappings, chem_ins, chem_struc_ins, chem_map_del, chem_map_ins, chunk)
 
         # Clean up resources
         chem_ins.close()
         chem_struc_ins.close()
+        chem_map_del.close()
         chem_map_ins.close()
 
         sql_alc_conn.close()
@@ -528,7 +542,7 @@ class DataLoader:
         logger.info("Chemical import completed" )
 
 
-    def _process_chem_rows(self, sql_alc_conn, chem_ins, chem_struc_ins, chem_map_ins, rows):
+    def _process_chem_rows(self, sql_alc_conn, update, chem_ins, chem_struc_ins, chem_map_del, chem_map_ins, rows):
         """Processes a batch of document-chemistry input records"""
 
         logger.debug( "Building set of unknown chemical IDs ({} known)".format(len(self.existing_chemicals)) )
@@ -597,22 +611,26 @@ class DataLoader:
 
         # Bulk insertions
         logger.debug("Performing {} chemical inserts".format(len(new_chems)) )
-        chem_ins.insert(new_chems)
+        chem_ins.execute(new_chems)
 
         self.existing_chemicals.update( new_chem_ids )
 
         logger.debug("Performing {} chemical structure inserts".format(len(new_chem_structs)) )
-        chem_struc_ins.insert( new_chem_structs)
+        chem_struc_ins.execute( new_chem_structs)
+        
+        if (update):
+            logger.debug("Performing {} mapping deletions (for update)".format(len(new_chem_structs)) )
+            chem_map_del.execute( new_mappings)
 
         logger.debug("Performing {} mapping inserts".format(len(new_mappings)) )
-        chem_map_ins.insert( new_mappings)
+        chem_map_ins.execute( new_mappings)
 
 
-class DBInserter:
+class DBBatcher:
     """Convenience wrapper for DB-API functionality"""
 
     def __init__(self, db_api_conn, operation, types=None):
-        """Initialize a DBInserter, with a given connection and insert operation"""
+        """Initialize a DBBatcher, with a given connection and operation"""
         self.conn = db_api_conn
         self.cursor = db_api_conn.cursor()
         self.operation = operation
@@ -620,19 +638,18 @@ class DBInserter:
             self.cursor.setinputsizes(*types)
 
 
-    def insert(self,data):
-        """Insert the given data, in bulk"""
+    def execute(self,data):
+        """Perform the given operations, in bulk"""
 
         try:
 
             start = time.time()
 
-            # Typical: This will work as long as there as no duplicates
             self.cursor.executemany(self.operation, data)
 
             end = time.time()
 
-            logger.info("Operation [{}] took {} seconds; {} records loaded".format(self.operation, end-start, len(data)))
+            logger.info("Operation [{}] took {:.3f} seconds; {} operations processed".format(self.operation, end-start, len(data)))
 
         except Exception, exc:
 
@@ -666,7 +683,7 @@ class DBInserter:
 
 
     def close(self):
-        """Clean up DBInserter resources"""
+        """Clean up DBBatcher resources"""
         self.cursor.close()
 
 

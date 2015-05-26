@@ -46,6 +46,7 @@ def main():
 
     # Flags that determine how downloaded files are processed
     parser.add_argument('--overwrite',    help='Replace any existing document/chemistry records with newly downloaded data', action="store_true")
+    parser.add_argument('--preload_bib_ids', help='Try to find IDs for documents, instead of waiting for Integrity Errors',     action="store_true")
     parser.add_argument('--skip_titles',  help='Ignore titles when loading document metadata',                               action="store_true")
     parser.add_argument('--skip_classes', help='Ignore classifications when loading document metadata',                      action="store_true")
 
@@ -64,10 +65,13 @@ def main():
                     allow_doc_dups=True)
 
         for bib_file in filter( lambda f: f.endswith("biblio.json"), input_files):
-            loader.load_biblio( "{}/{}".format( args.working_dir,bib_file ) )
+            loader.load_biblio( "{}/{}".format( args.working_dir,bib_file ), preload_ids=args.preload_bib_ids )
 
         for chem_file in filter( lambda f: f.endswith("chemicals.tsv"), input_files):
-            loader.load_chems( "{}/{}".format( args.working_dir,chem_file ) )
+            update = "supp" in chem_file
+            if update: logger.info("Supplementary chemical file detected - setting parameters to handle duplicate records")
+
+            loader.load_chems( "{}/{}".format( args.working_dir,chem_file ), update )
 
         logger.info("Processing complete, exiting")
 
