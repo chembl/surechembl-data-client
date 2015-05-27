@@ -239,7 +239,7 @@ but is relatively low impact and thus non-terminal.
 
 ## Data Coverage
 
-Back file data is available for 1973-2014 (up to 18th November 2014).
+Back file data is available for 1973-2014 (up to 31st December 2014).
  
 Front file data is available for 18th November 2014 onwards, and is updated every day.
 
