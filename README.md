@@ -241,6 +241,6 @@ but is relatively low impact and thus non-terminal.
 
 Back file data is available for 1973-2014 (up to 31st December 2014).
  
-Front file data is available for 18th November 2014 onwards, and is updated every day.
+Front file data is available for the 1st January 2015 onwards, and is updated every day.
 
 
