@@ -26,6 +26,10 @@ If you want to use the default RDBMS (oracle), you'll need:
 Note that the client code has been tested against Oracle, but is written in a DB-agnostic way to simplify usage in
 other scenarios.
 
+If you want to use PostgreSQL, you'll need:
+
+* Psycopg 2.6.1
+
 ## Python libraries
 
 The complete 'pinned' library dependencies can be found in the following files, for Ubuntu and Mac OS X:

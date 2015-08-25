@@ -13,7 +13,14 @@ from sqlalchemy import create_engine
 from scripts.new_file_reader import NewFileReader
 from scripts.data_loader import DataLoader
 from scripts.helper_funcs import retry
-import cx_Oracle
+try:
+    import cx_Oracle
+except ImportError:
+    cx_Oracle = None
+try:
+    import psycopg2
+except ImportError:
+    psycopg2 = None
 
 
 logging.basicConfig( format='%(asctime)s %(levelname)s %(name)s %(message)s', level=logging.INFO)
@@ -32,6 +39,7 @@ def main():
     parser.add_argument('ftp_pass',      metavar='fp', type=str,  help='Password for accessing the EBI FTP site')
     parser.add_argument('db_user',       metavar='du', type=str,  help='Username for accessing the target database')
     parser.add_argument('db_pass',       metavar='dp', type=str,  help='Password for accessing the target database')
+    parser.add_argument('--db_type',     metavar='dt', type=str,  help='Database type ("oracle" or "postgres")',  default="oracle")
     parser.add_argument('--db_host',     metavar='dh', type=str,  help='Host where the database can be found',     default="127.0.0.1")
     parser.add_argument('--db_port',     metavar='do', type=str,  help='Port over which the database is accessed', default="1521")
     parser.add_argument('--db_name',     metavar='dn', type=str,  help='Database name (for connection string)',    default="XE")
@@ -56,6 +64,11 @@ def main():
 
     logger.info("Loading data files into DB")
 
+    if args.db_type == 'oracle':
+	db_pkg = cx_Oracle
+    elif args.db_type == 'postgres':
+        db_pkg = psycopg2
+        
     try:
         db = _get_db_engine(args)
         loader = DataLoader(db,
@@ -75,9 +88,9 @@ def main():
 
         logger.info("Processing complete, exiting")
 
-    except cx_Oracle.DatabaseError, exc:
-        # Specialized display handling for Oracle exceptions
-        logger.error( "Oracle exception detected: {}".format( exc ) )
+    except db_pkg.DatabaseError, exc:
+        # Specialized display handling for Database exceptions
+        logger.error( "Database exception detected: {}".format( exc ) )
         raise
 
 def _prepare_files(args):
@@ -168,7 +181,7 @@ def _get_db_engine(args):
     """
     Create a database connection.
 
-    Currently, oracle is the only supported connection type. If there are stability issues, try adding
+    Currently, oracle and postgresql are supported connection types. If there are stability issues, try adding
     "implicit_returning=False" to the parameter list
     :param args: Command line arguments, which must include database connection parameters.
     :return: SQL Alchemy database engine object
@@ -176,8 +189,12 @@ def _get_db_engine(args):
 
     os.environ["NLS_LANG"] = ".AL32UTF8"
 
-    connection_str = "oracle+cx_oracle://{0}:{1}@{2}:{3}/{4}".format(
-        args.db_user, args.db_pass, args.db_host, args.db_port, args.db_name)
+    if args.db_type == 'oracle':
+        connection_str = "oracle+cx_oracle://{0}:{1}@{2}:{3}/{4}".format(
+            args.db_user, args.db_pass, args.db_host, args.db_port, args.db_name)
+    elif args.db_type == 'postgres':
+        connection_str = "postgresql+psycopg2://{0}:{1}@{2}:{3}/{4}".format(
+            args.db_user, args.db_pass, args.db_host, args.db_port, args.db_name)
 
     logger.info("DB connection string: [{}]".format(connection_str))
 
