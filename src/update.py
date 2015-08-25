@@ -65,7 +65,7 @@ def main():
     logger.info("Loading data files into DB")
 
     if args.db_type == 'oracle':
-	db_pkg = cx_Oracle
+        db_pkg = cx_Oracle
     elif args.db_type == 'postgres':
         db_pkg = psycopg2
         
