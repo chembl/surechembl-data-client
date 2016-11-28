@@ -176,8 +176,8 @@ def _get_db_engine(args):
 
     os.environ["NLS_LANG"] = ".AL32UTF8"
 
-    connection_str = "oracle+cx_oracle://{0}:{1}@{2}:{3}/{4}".format(
-        args.db_user, args.db_pass, args.db_host, args.db_port, args.db_name)
+    connection_str = "oracle+cx_oracle://{0}:{1}@{2}".format(
+        args.db_user, args.db_pass, args.db_name)
 
     logger.info("DB connection string: [{}]".format(connection_str))
 
