@@ -68,7 +68,7 @@ def main():
         db_pkg = cx_Oracle
     elif args.db_type == 'postgres':
         db_pkg = psycopg2
-        
+
     try:
         db = _get_db_engine(args)
         loader = DataLoader(db,
@@ -190,8 +190,8 @@ def _get_db_engine(args):
     os.environ["NLS_LANG"] = ".AL32UTF8"
 
     if args.db_type == 'oracle':
-        connection_str = "oracle+cx_oracle://{0}:{1}@{2}:{3}/{4}".format(
-            args.db_user, args.db_pass, args.db_host, args.db_port, args.db_name)
+        connection_str = "oracle+cx_oracle://{0}:{1}@{2}".format(
+            args.db_user, args.db_pass, args.db_name)
     elif args.db_type == 'postgres':
         connection_str = "postgresql+psycopg2://{0}:{1}@{2}:{3}/{4}".format(
             args.db_user, args.db_pass, args.db_host, args.db_port, args.db_name)

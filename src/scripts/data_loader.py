@@ -5,9 +5,34 @@ import csv
 import re
 import time
 from datetime import datetime
-from sqlalchemy import MetaData, Table, ForeignKey, Column, Sequence, Integer, Float, String, SmallInteger, Date, Text, select, bindparam
+from sqlalchemy import MetaData, Table, ForeignKey, Column, Sequence, Integer, Float, SmallInteger, Date, Text, select, bindparam
+from sqlalchemy import String as _String
 
 logger = logging.getLogger(__name__)
+
+# Behaviour of the SQLAlchemy data type String is modified here for the case of Oracle
+# database. Without this modification you'll end up with full table scans for queries
+# associated with VARCHAR Oracle column type, even if indexes are presented for such
+# columns.
+# Read topic "Full table scan using Oracle String indexes" on SQLAlchemy mail list
+# for more information:
+# https://groups.google.com/forum/#!msg/sqlalchemy/8Xn31vBfGKU/bAGLNKapvSMJ
+class String(_String):
+    def bind_processor(self, dialect):
+        if dialect.name == 'oracle':
+            encoder = codecs.getencoder(dialect.encoding)
+            def process(value):
+                if isinstance(value, unicode):
+                    return encoder(value, self.unicode_error)[0]
+                else:
+                    return value
+            return process
+        else:
+            return super(String, self).bind_processor(dialect)
+
+    def adapt(self, cls, *args, **kw):
+        return self.__class__(*args, **kw)
+
 
 class DocumentField:
     """Contains constants for document field identification"""
