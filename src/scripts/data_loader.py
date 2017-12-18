@@ -217,8 +217,12 @@ class DataLoader:
         sql_alc_conn = self.db.connect()
         db_api_conn = sql_alc_conn.connection
 
-        title_ins = DBBatcher(db_api_conn, 'insert into schembl_document_title (schembl_doc_id, lang, text) values (:1, :2, :3)')
-        classes_ins = DBBatcher(db_api_conn, 'insert into schembl_document_class (schembl_doc_id, class, system) values (:1, :2, :3)')
+        if ("cx_oracle" in str(self.db.dialect)):
+            title_ins = DBBatcher(db_api_conn, 'insert into schembl_document_title (schembl_doc_id, lang, text) values (:1, :2, :3)')
+            classes_ins = DBBatcher(db_api_conn, 'insert into schembl_document_class (schembl_doc_id, class, system) values (:1, :2, :3)')
+        else:
+            title_ins = DBBatcher(db_api_conn, 'insert into schembl_document_title (schembl_doc_id, lang, text) values (%s, %s, %s)')
+            classes_ins = DBBatcher(db_api_conn, 'insert into schembl_document_class (schembl_doc_id, class, system) values (%s, %s, %s)')
 
 
         ########################################################################
@@ -534,6 +538,17 @@ class DataLoader:
         chem_struc_ins = DBBatcher(db_api_conn, 'insert into schembl_chemical_structure (schembl_chem_id, smiles, std_inchi, std_inchikey) values (:1, :2, :3, :4)', self.chem_struc_types)
         chem_map_del = DBBatcher(db_api_conn, 'delete from schembl_document_chemistry where schembl_doc_id = :1 and schembl_chem_id = :2 and field = :3 and (:4 > -1)')
         chem_map_ins = DBBatcher(db_api_conn, 'insert into schembl_document_chemistry (schembl_doc_id, schembl_chem_id, field, frequency) values (:1, :2, :3, :4)')
+        if ("cx_oracle" in str(self.db.dialect)):
+            chem_ins = DBBatcher(db_api_conn, 'insert into schembl_chemical (id, mol_weight, logp, med_chem_alert, is_relevant, donor_count, acceptor_count, ring_count, rot_bond_count, corpus_count) values (:1, :2, :3, :4, :5, :6, :7, :8, :9, :10)')
+            chem_struc_ins = DBBatcher(db_api_conn, 'insert into schembl_chemical_structure (schembl_chem_id, smiles, std_inchi, std_inchikey) values (:1, :2, :3, :4)', self.chem_struc_types)
+            chem_map_del = DBBatcher(db_api_conn, 'delete from schembl_document_chemistry where schembl_doc_id = :1 and schembl_chem_id = :2 and field = :3 and (:4 > -1)')
+            chem_map_ins = DBBatcher(db_api_conn, 'insert into schembl_document_chemistry (schembl_doc_id, schembl_chem_id, field, frequency) values (:1, :2, :3, :4)')
+        else:
+            chem_ins = DBBatcher(db_api_conn, 'insert into schembl_chemical (id, mol_weight, logp, med_chem_alert, is_relevant, donor_count, acceptor_count, ring_count, rot_bond_count, corpus_count) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)')
+            chem_struc_ins = DBBatcher(db_api_conn, 'insert into schembl_chemical_structure (schembl_chem_id, smiles, std_inchi, std_inchikey) values (%s, %s, %s, %s)', self.chem_struc_types)
+            chem_map_del = DBBatcher(db_api_conn, 'delete from schembl_document_chemistry where schembl_doc_id = %s and schembl_chem_id = %s and field = %s and (%s > -1)')
+            chem_map_ins = DBBatcher(db_api_conn, 'insert into schembl_document_chemistry (schembl_doc_id, schembl_chem_id, field, frequency) values (%s, %s, %s, %s)')
+
 
         chunk = []
 

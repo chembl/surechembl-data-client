@@ -1,6 +1,6 @@
 -- DDL for defining client-side database schema of the SureChEMBL data feed.
 --
--- Designed for Oracle and MySQL. See per-table comments for minor adjustments 
+-- Designed for Oracle, PostgreSQL and MySQL. See per-table comments for minor adjustments 
 -- that may be needed for your RDBMS.
 
 /*** Drop statements (for convenience only)
@@ -21,6 +21,7 @@ DROP SEQUENCE schembl_document_id;
 
 -- MySQL:  Add AUTO_INCREMENT to 'id'
 -- Oracle: Comment-in the sequence
+-- PostgreSQL: Comment-in the sequence
 
 CREATE TABLE schembl_document (
   id INTEGER NOT NULL,
