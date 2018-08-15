@@ -23,8 +23,10 @@ except ImportError:
     psycopg2 = None
 
 
-logging.basicConfig( format='%(asctime)s %(levelname)s %(name)s %(message)s', level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)s %(name)s %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 def main():
     """
@@ -34,29 +36,50 @@ def main():
     logger.info("Starting SureChEMBL update process")
 
     # Parse core command line arguments
-    parser = argparse.ArgumentParser(description='Load data into the SureChEMBL database')
-    parser.add_argument('ftp_user',      metavar='fu', type=str,  help='Username for accessing the EBI FTP site')
-    parser.add_argument('ftp_pass',      metavar='fp', type=str,  help='Password for accessing the EBI FTP site')
-    parser.add_argument('db_user',       metavar='du', type=str,  help='Username for accessing the target database')
-    parser.add_argument('db_pass',       metavar='dp', type=str,  help='Password for accessing the target database')
-    parser.add_argument('--db_type',     metavar='dt', type=str,  help='Database type ("oracle" or "postgres")',  default="oracle")
-    parser.add_argument('--db_host',     metavar='dh', type=str,  help='Host where the database can be found',     default="127.0.0.1")
-    parser.add_argument('--db_port',     metavar='do', type=str,  help='Port over which the database is accessed', default="1521")
-    parser.add_argument('--db_name',     metavar='dn', type=str,  help='Database name (for connection string)',    default="XE")
-    parser.add_argument('--working_dir', metavar='w',  type=str,  help='Working directory for downloaded files',   default="/tmp/schembl_ftp_data")
-
+    parser = argparse.ArgumentParser(
+        description='Load data into the SureChEMBL database')
+    parser.add_argument('ftp_user', metavar='fu', type=str,
+                        help='Username for accessing the EBI FTP site')
+    parser.add_argument('ftp_pass', metavar='fp', type=str,
+                        help='Password for accessing the EBI FTP site')
+    parser.add_argument('db_user', metavar='du', type=str,
+                        help='Username for accessing the target database')
+    parser.add_argument('db_pass', metavar='dp', type=str,
+                        help='Password for accessing the target database')
+    parser.add_argument('--db_type', metavar='dt', type=str,
+                        help='Database type ("oracle" or "postgres")', default="oracle")
+    parser.add_argument('--db_host', metavar='dh', type=str,
+                        help='Host where the database can be found', default="127.0.0.1")
+    parser.add_argument('--db_port', metavar='do', type=str,
+                        help='Port over which the database is accessed', default="1521")
+    parser.add_argument('--db_name', metavar='dn', type=str,
+                        help='Database name (for connection string)', default="XE")
+    parser.add_argument('--working_dir', metavar='w',  type=str,
+                        help='Working directory for downloaded files', default="/tmp/schembl_ftp_data")
+    parser.add_argument('--proxy_host', metavar='ph', type=str,
+                        help='Proxy host for accessing the FTP')
+    parser.add_argument('--proxy_port', metavar='pp', type=str,
+                        help='Proxy port and port for accessing the FTP')                        
     # Options that determine what is loaded
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('--year',         metavar='y',  type=str,  help='A year to extract from the back file, format: YYYY')
-    group.add_argument('--date',         metavar='d',  type=str,  help='A date to extract from the front file, format: YYYYMMDD; defaults to today', default="today")
-    group.add_argument('--input_dir',    metavar='f',  type=str,  help='A directory of pre-downloaded data files to load (e.g. for overwriting)')
-    parser.add_argument('--all',         help='Download all files, or just new files? Front file only',                     action="store_true")
+    group.add_argument('--year',         metavar='y',  type=str,
+                       help='A year to extract from the back file, format: YYYY')
+    group.add_argument('--date',         metavar='d',  type=str,
+                       help='A date to extract from the front file, format: YYYYMMDD; defaults to today', default="today")
+    group.add_argument('--input_dir',    metavar='f',  type=str,
+                       help='A directory of pre-downloaded data files to load (e.g. for overwriting)')
+    parser.add_argument('--all',         help='Download all files, or just new files? Front file only',
+                        action="store_true")
 
     # Flags that determine how downloaded files are processed
-    parser.add_argument('--overwrite',    help='Replace any existing document/chemistry records with newly downloaded data', action="store_true")
-    parser.add_argument('--preload_bib_ids', help='Try to find IDs for documents, instead of waiting for Integrity Errors',     action="store_true")
-    parser.add_argument('--skip_titles',  help='Ignore titles when loading document metadata',                               action="store_true")
-    parser.add_argument('--skip_classes', help='Ignore classifications when loading document metadata',                      action="store_true")
+    parser.add_argument(
+        '--overwrite',    help='Replace any existing document/chemistry records with newly downloaded data', action="store_true")
+    parser.add_argument(
+        '--preload_bib_ids', help='Try to find IDs for documents, instead of waiting for Integrity Errors',     action="store_true")
+    parser.add_argument('--skip_titles',  help='Ignore titles when loading document metadata',
+                        action="store_true")
+    parser.add_argument('--skip_classes', help='Ignore classifications when loading document metadata',
+                        action="store_true")
 
     args = parser.parse_args()
 
@@ -72,26 +95,31 @@ def main():
     try:
         db = _get_db_engine(args)
         loader = DataLoader(db,
-                    load_titles=not args.skip_titles,
-                    load_classifications=not args.skip_classes,
-                    overwrite=args.overwrite,
-                    allow_doc_dups=True)
+                            load_titles=not args.skip_titles,
+                            load_classifications=not args.skip_classes,
+                            overwrite=args.overwrite,
+                            allow_doc_dups=True)
 
-        for bib_file in filter( lambda f: f.endswith("biblio.json"), input_files):
-            loader.load_biblio( "{}/{}".format( args.working_dir,bib_file ), preload_ids=args.preload_bib_ids )
+        for bib_file in filter(lambda f: f.endswith("biblio.json"), input_files):
+            loader.load_biblio(
+                "{}/{}".format(args.working_dir, bib_file), preload_ids=args.preload_bib_ids)
 
-        for chem_file in filter( lambda f: f.endswith("chemicals.tsv"), input_files):
+        for chem_file in filter(lambda f: f.endswith("chemicals.tsv"), input_files):
             update = "supp" in chem_file
-            if update: logger.info("Supplementary chemical file detected - setting parameters to handle duplicate records")
+            if update:
+                logger.info(
+                    "Supplementary chemical file detected - setting parameters to handle duplicate records")
 
-            loader.load_chems( "{}/{}".format( args.working_dir,chem_file ), update )
+            loader.load_chems(
+                "{}/{}".format(args.working_dir, chem_file), update)
 
         logger.info("Processing complete, exiting")
 
     except db_pkg.DatabaseError, exc:
         # Specialized display handling for Database exceptions
-        logger.error( "Database exception detected: {}".format( exc ) )
+        logger.error("Database exception detected: {}".format(exc))
         raise
+
 
 def _prepare_files(args):
 
@@ -106,31 +134,48 @@ def _prepare_files(args):
 
         logger.info("Discovering and downloading data files")
 
-        ftp = ftplib.FTP('ftp-private.ebi.ac.uk', args.ftp_user, args.ftp_pass)
+        ftp = ftplib.FTP()
+
+        if (args.proxy_host):
+            logger.info("Connecting to proxy {}".format(args.proxy_host))
+            ftp.connect(args.proxy_host, args.proxy_port)
+            ftp_host = "{user}@{host}".format(user=args.ftp_user, host='ftp-private.ebi.ac.uk')
+            logger.info(ftp_host)
+            ftpconmsg = ftp.login(ftp_host, args.ftp_pass)
+            logger.debug(ftpconmsg)
+        else:
+            logger.info("Connecting to server {}".format('ftp-private.ebi.ac.uk'))
+            ftp.connect('ftp-private.ebi.ac.uk')
+            ftpconmsg = ftp.login(args.ftp_user, args.ftp_pass)
+            logger.debug(ftpconmsg)
+
         reader = NewFileReader(ftp)
 
         download_list = _get_files_retry(args, reader)
 
-        if len( download_list ) == 0:
+        if len(download_list) == 0:
             logger.info("No files detected for download, exiting")
             sys.exit(0)
 
-        reader.read_files( download_list, args.working_dir )
+        reader.read_files(download_list, args.working_dir)
 
-        if len( os.listdir(args.working_dir) ) == 0:
-            logger.error("Files were downloaded, but working directory is empty")
-            raise RuntimeError( "Working directory [{}] is empty".format(args.working_dir) )
+        if len(os.listdir(args.working_dir)) == 0:
+            logger.error(
+                "Files were downloaded, but working directory is empty")
+            raise RuntimeError(
+                "Working directory [{}] is empty".format(args.working_dir))
 
     else:
 
         logger.info("Copying input files into working directory")
 
-        if len ( os.listdir(args.input_dir) ) == 0:
+        if len(os.listdir(args.input_dir)) == 0:
             logger.info("No files detected in input folder")
 
-        check_call("cp {}/* {}".format(args.input_dir, args.working_dir), shell=True)
+        check_call("cp {}/* {}".format(args.input_dir,
+                                       args.working_dir), shell=True)
 
-        if len( os.listdir(args.working_dir) ) == 0:
+        if len(os.listdir(args.working_dir)) == 0:
             logger.warn("Empty working directory detected, exiting")
             sys.exit(0)
 
@@ -139,7 +184,6 @@ def _prepare_files(args):
     check_call("gunzip {}/*.gz".format(args.working_dir), shell=True)
 
     return os.listdir(args.working_dir)
-
 
 
 def _get_files_retry(args, reader):
@@ -152,29 +196,33 @@ def _get_files_retry(args, reader):
 
     try:
 
-        download_list = retry(5, _get_target_downloads, [args,reader], sleep_secs=180)
+        download_list = retry(5, _get_target_downloads, [
+                              args, reader], sleep_secs=180)
 
     except Exception, exc:
 
-        logger.error( "Exception detected in _get_target_downloads! Message: {}".format(exc.message) )
+        logger.error(
+            "Exception detected in _get_target_downloads! Message: {}".format(exc.message))
         sys.exit(1)
 
     return download_list
+
 
 def _get_target_downloads(args, reader):
 
     if args.year != None:
         target_year = datetime.strptime(args.year, '%Y')
-        file_list = reader.get_backfile_year( target_year )
+        file_list = reader.get_backfile_year(target_year)
     else:
-        target_date = date.today() if args.date == "today" else datetime.strptime(args.date, '%Y%m%d')
+        target_date = date.today() if args.date == "today" else datetime.strptime(
+            args.date, '%Y%m%d')
 
         if args.all:
-            file_list = reader.get_frontfile_all( target_date )
+            file_list = reader.get_frontfile_all(target_date)
         else:
-            file_list = reader.get_frontfile_new( target_date )
+            file_list = reader.get_frontfile_new(target_date)
 
-    return reader.select_downloads( file_list )
+    return reader.select_downloads(file_list)
 
 
 def _get_db_engine(args):
@@ -205,4 +253,3 @@ def _get_db_engine(args):
 
 if __name__ == '__main__':
     main()
-
