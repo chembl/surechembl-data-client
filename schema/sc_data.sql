@@ -28,7 +28,7 @@ CREATE TABLE schembl_document (
   scpn VARCHAR(50) NOT NULL,
   published DATE NULL,
   life_sci_relevant SMALLINT NULL,
-  assign_applic VARCHAR(1000) NOT NULL,  
+  assign_applic VARCHAR(1000),  
   family_id INTEGER NULL,
   PRIMARY KEY (id));
 
