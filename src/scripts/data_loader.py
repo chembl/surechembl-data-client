@@ -146,6 +146,7 @@ class DataLoader:
                      Column('scpn',              String(50),    unique=True),
                      Column('published',         Date()),
                      Column('life_sci_relevant', SmallInteger()),
+                     Column('assign_applic',     String(1000)),                     
                      Column('family_id',         Integer))
 
         self.titles = Table('schembl_document_title', self.metadata,
@@ -283,7 +284,7 @@ class DataLoader:
                 # STEP 2.1 Extract core biblio records #
                 ########################################
 
-                family_id, pubdate, pubnumber = self._extract_core_biblio(bib)
+                family_id, pubdate, pubnumber, assign_applic = self._extract_core_biblio(bib)
 
                 life_sci_relevant = self._extract_life_sci_relevance(bib)
 
@@ -303,7 +304,8 @@ class DataLoader:
                             'extant_id'             : doc_id,
                             'new_published'         : pubdate,
                             'new_family_id'         : family_id,
-                            'new_life_sci_relevant' : life_sci_relevant })
+                            'new_life_sci_relevant' : life_sci_relevant,
+                            'new_assign_applic'     : assign_applic })
                     else:
                         # The document is known, and we're not overwriting: skip
                         continue
@@ -315,6 +317,7 @@ class DataLoader:
                         'scpn'              : pubnumber,
                         'published'         : pubdate,
                         'family_id'         : family_id,
+                        'assign_applic'     : assign_applic,
                         'life_sci_relevant' : int(life_sci_relevant) }
 
                     try:
@@ -369,7 +372,8 @@ class DataLoader:
                     where(self.docs.c.id == bindparam('extant_id')).\
                     values(published=bindparam('new_published'), 
                            family_id=bindparam('new_family_id'), 
-                           life_sci_relevant=bindparam('new_life_sci_relevant'))
+                           life_sci_relevant=bindparam('new_life_sci_relevant'),
+                           assign_applic=bindparam('new_assign_applic'))
 
                 sql_alc_conn.execute(stmt, overwrite_docs)
 
@@ -459,12 +463,14 @@ class DataLoader:
             pubdate = datetime.strptime(bib_scalar(bib, 'pubdate'), '%Y%m%d')
             fam_raw = bib_scalar(bib, 'family_id')
             family_id = int(fam_raw) if fam_raw != None else fam_raw
+            assign_applic = bib.get('assign_applic')
+            assign_applic = '|'.join(assign_applic) if assign_applic != None else ""
         except KeyError, exc:
             raise RuntimeError("Document is missing mandatory biblio field (KeyError: {})".format(exc))
         if len(pubnumber) == 0:
             raise RuntimeError("Document publication number field is empty")
 
-        return family_id, pubdate, pubnumber
+        return family_id, pubdate, pubnumber, assign_applic
 
     def _extract_life_sci_relevance(self, bib):
         """Work out of the document is relevant to life science"""
