@@ -1,0 +1,12 @@
+XE =
+  (DESCRIPTION =
+    (ADDRESS_LIST =
+        (ADDRESS =
+          (PROTOCOL = TCP)
+          (HOST = oradb)
+          (PORT = 1521)
+        )
+    )
+    (CONNECT_DATA = (SERVICE_NAME = XE)
+    )
+  )
