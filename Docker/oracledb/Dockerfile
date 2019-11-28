@@ -1,8 +1,4 @@
-FROM alexeiled/docker-oracle-xe-11g
+FROM wnameless/oracle-xe-11g-r2
 
-ADD usermanage.sql /tmp/
-ADD surechembl.sql /tmp/
-ADD fireitup.sh /
-RUN chmod 755 /fireitup.sh
-
-ENTRYPOINT [ "/fireitup.sh" ]
+ADD init.sql /docker-entrypoint-initdb.d/
+ADD surechembl.sql /docker-entrypoint-initdb.d/
