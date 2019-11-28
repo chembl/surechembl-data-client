@@ -1,10 +1,10 @@
 
 CREATE TABLE schembl_document (
   id INTEGER NOT NULL,
-  scpn VARCHAR(50) NOT NULL,
+  scpn VARCHAR2(50) NOT NULL,
   published DATE NULL,
   life_sci_relevant SMALLINT NULL,
-  assign_applic VARCHAR(1000),
+  assign_applic VARCHAR2(4000),
   family_id INTEGER NULL,
   PRIMARY KEY (id));
 
@@ -18,7 +18,7 @@ CREATE SEQUENCE schembl_document_id;
 
 CREATE TABLE schembl_document_class (
   schembl_doc_id INTEGER NOT NULL,
-  class VARCHAR(100) NOT NULL,
+  class VARCHAR2(100) NOT NULL,
   system SMALLINT NOT NULL,
   PRIMARY KEY (schembl_doc_id, class, system),
   CONSTRAINT fk_docclass_to_doc
@@ -34,7 +34,7 @@ CREATE TABLE schembl_document_class (
 
 CREATE TABLE schembl_document_title (
   schembl_doc_id INTEGER NOT NULL,
-  lang VARCHAR(10) NOT NULL,
+  lang VARCHAR2(10) NOT NULL,
   text CLOB NULL,
   PRIMARY KEY (schembl_doc_id, lang),
   CONSTRAINT fk_doctitle_to_doc
@@ -70,7 +70,7 @@ CREATE TABLE schembl_chemical_structure (
   schembl_chem_id INTEGER NOT NULL,
   smiles CLOB NULL,
   std_inchi CLOB NULL,
-  std_inchikey VARCHAR(27) NULL,
+  std_inchikey VARCHAR2(27) NULL,
   PRIMARY KEY (schembl_chem_id),
   CONSTRAINT fk_chemstruct_to_chem
     FOREIGN KEY (schembl_chem_id)

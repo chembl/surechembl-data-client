@@ -20,7 +20,7 @@ RUN apt-get -qq update && apt-get -y -qq upgrade && \
     echo "export LANG=en_US.UTF-8" >> ~/.bashrc && \
     echo "export LANGUAGE=en_US.UTF-8" >> ~/.bashrc && \
     alien ${SURE_DATA_CLIENT}/Docker/data-client/oracle-instantclient18.3-* && \
-    rm -f ${SURE_DATA_CLIENT}/Docker/data-client/oracle-instantclient18.3-* && \
+    rm -f ${SURE_DATA_CLIENT}/Docker/data-client/oracle-instantclient18.3-*.rpm && \
     dpkg -i oracle-instantclient*.deb && \
     echo /usr/lib/oracle/18.3/client64/lib > /etc/ld.so.conf.d/oracle-instantclient18.3.conf && \
     ldconfig
