@@ -5,8 +5,8 @@ import csv
 import re
 import time
 from datetime import datetime
-from sqlalchemy import MetaData, Table, ForeignKey, Column, Sequence, Integer, Float, SmallInteger, Date, Text, select, bindparam
-from sqlalchemy import String as _String
+from sqlalchemy import MetaData, Table, ForeignKey, Column, Sequence, Integer, Float, SmallInteger, Date, Text, select, bindparam, String
+# from sqlalchemy import String as _String
 
 logger = logging.getLogger(__name__)
 
@@ -17,21 +17,21 @@ logger = logging.getLogger(__name__)
 # Read topic "Full table scan using Oracle String indexes" on SQLAlchemy mail list
 # for more information:
 # https://groups.google.com/forum/#!msg/sqlalchemy/8Xn31vBfGKU/bAGLNKapvSMJ
-class String(_String):
-    def bind_processor(self, dialect):
-        if dialect.name == 'oracle':
-            encoder = codecs.getencoder(dialect.encoding)
-            def process(value):
-                if isinstance(value, unicode):
-                    return encoder(value, self.unicode_error)[0]
-                else:
-                    return value
-            return process
-        else:
-            return super(String, self).bind_processor(dialect)
+# class String(_String):
+#     def bind_processor(self, dialect):
+#         if dialect.name == 'oracle':
+#             encoder = codecs.getencoder(dialect.encoding)
+#             def process(value):
+#                 if isinstance(value, unicode):
+#                     return encoder(value, self.unicode_error)[0]
+#                 else:
+#                     return value
+#             return process
+#         else:
+#             return super(String, self).bind_processor(dialect)
 
-    def adapt(self, cls, *args, **kw):
-        return self.__class__(*args, **kw)
+#     def adapt(self, cls, *args, **kw):
+#         return self.__class__(*args, **kw)
 
 
 class DocumentField:
@@ -311,7 +311,7 @@ class DataLoader:
                         continue
 
                 else:
-
+                    
                     # Create a new record for the document
                     record = {
                         'scpn'              : pubnumber,
@@ -319,7 +319,7 @@ class DataLoader:
                         'family_id'         : family_id,
                         'assign_applic'     : assign_applic,
                         'life_sci_relevant' : int(life_sci_relevant) }
-
+                    
                     try:
 
                         start = time.time()
@@ -463,8 +463,8 @@ class DataLoader:
             pubdate = datetime.strptime(bib_scalar(bib, 'pubdate'), '%Y%m%d')
             fam_raw = bib_scalar(bib, 'family_id')
             family_id = int(fam_raw) if fam_raw != None else fam_raw
-            assign_applic = bib.get('assign_applic')
-            assign_applic = '|'.join(assign_applic) if assign_applic != None else ""
+            assign_applic_raw = bib.get('assign_applic')
+            assign_applic = '|'.join(assign_applic_raw) if len(assign_applic_raw) > 0 else ""
         except KeyError, exc:
             raise RuntimeError("Document is missing mandatory biblio field (KeyError: {})".format(exc))
         if len(pubnumber) == 0:

@@ -1,0 +1,24 @@
+version: "3"
+services:
+  surechembl:
+    build: .
+    container_name: surechembl
+    image: chembl/surechembl-data-client
+
+  #  OPTIONAL ORACLE DB
+  oradbxe:
+    container_name: oradb
+    build: "./Docker/oracledb"
+    image: arcebi/surechembl-oradb-xe
+    ports:
+      - "1521:1521"
+    shm_size: "2gb"
+
+  # OPTIONAL POSTGRESQL DB  
+  # postgresql:
+  #   container_name: sure-data-client-pg
+  #   build: ./Docker/postgres
+  #   environment:
+  #     POSTGRES_PASSWORD: lepass
+  #   ports:
+  #     - "5432:5432"
