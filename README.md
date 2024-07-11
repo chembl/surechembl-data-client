@@ -5,7 +5,7 @@ A collection of scripts for retrieving SureChEMBL data and building a relational
 
 Please clone this repository to your local environment and follow the instructions below. 
 
-Released under the MIT license. Access to the SureChEMBL data must be obtained from EMBL-EBI.
+Released under the MIT license. Access to the SureChEMBL data must be obtained from the team (surechembl-help@ebi.ac.uk )
 
 # Installation
 
